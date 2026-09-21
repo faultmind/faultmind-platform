@@ -1,3 +1,5 @@
+"use client";
+import { useEffect } from "react";
 import Link from 'next/link';
 import { Card } from 'components/card';
 import { ContextAlert } from 'components/context-alert';
@@ -60,4 +62,46 @@ function RuntimeContextCard() {
             </Card>
         );
     }
+}
+export default function Page() {
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.Paddle) {
+      window.Paddle.Environment.set("sandbox");
+      window.Paddle.Initialize({
+        token: "YOUR_CLIENT_SIDE_TOKEN", // Paste your test_... token here
+      });
+    }
+  }, []);
+
+  const handleCheckout = () => {
+    if (window.Paddle) {
+      window.Paddle.Checkout.open({
+        items: [{ priceId: "YOUR_PRICE_ID", quantity: 1 }], // Paste your pri_... ID here
+      });
+    }
+  };
+
+  return (
+    <main style={{ padding: "4rem", textAlign: "center" }}>
+      <h1>FaultMind Pro</h1>
+      <p>AI-assisted industrial diagnostics and root-cause analysis.</p>
+      
+      <button
+        onClick={handleCheckout}
+        style={{
+          backgroundColor: "#0F172A",
+          color: "#D9FF00",
+          padding: "12px 24px",
+          fontSize: "16px",
+          fontWeight: "bold",
+          borderRadius: "8px",
+          border: "none",
+          cursor: "pointer",
+          marginTop: "1rem"
+        }}
+      >
+        Subscribe to FaultMind Pro – $15/mo
+      </button>
+    </main>
+  );
 }
