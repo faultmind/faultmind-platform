@@ -68,7 +68,7 @@ export default function Page() {
     if (typeof window !== "undefined" && window.Paddle) {
       window.Paddle.Environment.set("sandbox");
       window.Paddle.Initialize({
-        token: "YOUR_CLIENT_SIDE_TOKEN", // Paste your test_... token here
+        token: "test_bd750c6afa2b96f46915dc54854", // Paste your test_... token here
       });
     }
   }, []);
@@ -76,7 +76,7 @@ export default function Page() {
   const handleCheckout = () => {
     if (window.Paddle) {
       window.Paddle.Checkout.open({
-        items: [{ priceId: "YOUR_PRICE_ID", quantity: 1 }], // Paste your pri_... ID here
+        items: [{ priceId: "pri_01m318yt98g9rfjwn8tmspze9h", quantity: 1 }], // Paste your pri_... ID here
       });
     }
   };
