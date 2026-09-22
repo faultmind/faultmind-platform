@@ -1,8 +1,17 @@
 "use client";
 import { useState, useEffect } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { useTranslations } from "next-intl";
+import { useRouter, usePathname } from "../../i18n/routing";
+import { supabase } from "../../lib/supabaseClient";
 
 export default function Page() {
+  const tHeader = useTranslations("Header");
+  const tAuth = useTranslations("Auth");
+  const tPricing = useTranslations("Pricing");
+
+  const router = useRouter();
+  const pathname = usePathname();
+
   const [user, setUser] = useState(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -15,7 +24,7 @@ export default function Page() {
     if (typeof window !== "undefined" && window.Paddle) {
       window.Paddle.Environment.set("sandbox");
       window.Paddle.Initialize({
-        token: "test_bd750c6afa2b96f46915dc54854", // keep your test_... token here
+        token: "test_bd750c6afa2b96f46915dc54854",
       });
     }
 
@@ -74,11 +83,16 @@ export default function Page() {
   const handleCheckout = () => {
     if (typeof window !== "undefined" && window.Paddle) {
       window.Paddle.Checkout.open({
-        items: [{ priceId: "pri_01m318yt98g9rfjwn8tmspze9h", quantity: 1 }], // your pri_... ID
+        items: [{ priceId: "pri_01m318yt98g9rfjwn8tmspze9h", quantity: 1 }],
         customer: user ? { email: user.email } : undefined,
         customData: user ? { userId: user.id } : {},
       });
     }
+  };
+
+  // 4. Language Switcher Handler
+  const changeLanguage = (nextLocale) => {
+    router.replace(pathname, { locale: nextLocale });
   };
 
   return (
@@ -95,6 +109,61 @@ export default function Page() {
         padding: "2rem",
       }}
     >
+      {/* Language Switcher Bar */}
+      <div
+        style={{
+          display: "flex",
+          gap: "12px",
+          marginBottom: "1.5rem",
+          backgroundColor: "#0F172A",
+          padding: "6px 16px",
+          borderRadius: "9999px",
+          border: "1px solid #1E293B",
+        }}
+      >
+        <button
+          onClick={() => changeLanguage("en")}
+          style={{
+            background: "none",
+            border: "none",
+            color: "#94A3B8",
+            fontSize: "0.85rem",
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          English
+        </button>
+        <span style={{ color: "#334155" }}>|</span>
+        <button
+          onClick={() => changeLanguage("ar")}
+          style={{
+            background: "none",
+            border: "none",
+            color: "#94A3B8",
+            fontSize: "0.85rem",
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          العربية
+        </button>
+        <span style={{ color: "#334155" }}>|</span>
+        <button
+          onClick={() => changeLanguage("de")}
+          style={{
+            background: "none",
+            border: "none",
+            color: "#94A3B8",
+            fontSize: "0.85rem",
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          Deutsch
+        </button>
+      </div>
+
       <div
         style={{
           width: "100%",
@@ -120,11 +189,13 @@ export default function Page() {
               border: "1px solid rgba(217, 255, 0, 0.25)",
             }}
           >
-            FaultMind Engineering Core
+            {tHeader("badge")}
           </span>
-          <h1 style={{ fontSize: "2rem", marginTop: "1rem" }}>FaultMind Pro</h1>
+          <h1 style={{ fontSize: "2rem", marginTop: "1rem" }}>
+            {tHeader("title")}
+          </h1>
           <p style={{ color: "#94A3B8", fontSize: "0.95rem" }}>
-            Multi-tenant industrial diagnostics & root-cause analysis
+            {tHeader("subtitle")}
           </p>
         </div>
 
@@ -140,7 +211,7 @@ export default function Page() {
             }}
           >
             <p style={{ fontSize: "0.85rem", color: "#94A3B8", margin: 0 }}>
-              Connected as:
+              {tAuth("connectedAs")}
             </p>
             <p style={{ fontWeight: 600, margin: "4px 0 12px 0" }}>
               {user.email}
@@ -157,7 +228,7 @@ export default function Page() {
                 cursor: "pointer",
               }}
             >
-              Sign Out
+              {tAuth("signOut")}
             </button>
           </div>
         ) : (
@@ -171,7 +242,7 @@ export default function Page() {
                   marginBottom: "4px",
                 }}
               >
-                Work Email
+                {tAuth("workEmail")}
               </label>
               <input
                 type="email"
@@ -200,7 +271,7 @@ export default function Page() {
                   marginBottom: "4px",
                 }}
               >
-                Password
+                {tAuth("password")}
               </label>
               <input
                 type="password"
@@ -236,10 +307,10 @@ export default function Page() {
               }}
             >
               {loading
-                ? "Processing..."
+                ? tAuth("processing")
                 : authMode === "signup"
-                ? "Create Account"
-                : "Sign In"}
+                ? tAuth("signUp")
+                : tAuth("signIn")}
             </button>
 
             <div style={{ textAlign: "center" }}>
@@ -258,8 +329,8 @@ export default function Page() {
                 }}
               >
                 {authMode === "login"
-                  ? "Need an account? Sign up"
-                  : "Already registered? Sign in"}
+                  ? tAuth("needAccount")
+                  : tAuth("haveAccount")}
               </button>
             </div>
           </form>
@@ -269,9 +340,11 @@ export default function Page() {
           <p
             style={{
               fontSize: "0.85rem",
-              color: statusMsg.includes("Check your email") || statusMsg.includes("successfully")
-                ? "#4ADE80"
-                : "#F87171",
+              color:
+                statusMsg.includes("Check your email") ||
+                statusMsg.includes("successfully")
+                  ? "#4ADE80"
+                  : "#F87171",
               textAlign: "center",
               marginBottom: "1rem",
             }}
@@ -289,8 +362,12 @@ export default function Page() {
           }}
         >
           <div style={{ margin: "1rem 0" }}>
-            <span style={{ fontSize: "2.25rem", fontWeight: 800 }}>$15</span>
-            <span style={{ color: "#94A3B8", fontSize: "0.95rem" }}> / month</span>
+            <span style={{ fontSize: "2.25rem", fontWeight: 800 }}>
+              {tPricing("price")}
+            </span>
+            <span style={{ color: "#94A3B8", fontSize: "0.95rem" }}>
+              {tPricing("cadence")}
+            </span>
           </div>
 
           <button
@@ -307,7 +384,7 @@ export default function Page() {
               width: "100%",
             }}
           >
-            Subscribe to FaultMind Pro
+            {tPricing("cta")}
           </button>
         </div>
       </div>
