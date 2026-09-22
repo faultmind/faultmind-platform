@@ -27,6 +27,7 @@
     "eslint": "9.39.5",
     "eslint-config-next": "^16.0.8",
     "postcss": "^8.4.36",
-    "tailwindcss": "^4.1.15"
+    "tailwindcss": "^4.1.15",
+    "@netlify/plugin-nextjs": "^5.9.0"
   }
 }
