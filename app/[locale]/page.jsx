@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter, usePathname } from "../../i18n/routing";
 import { supabase } from "../../lib/supabaseClient";
+import { redirect } from 'next/navigation';
 
 export default function Page() {
   const tHeader = useTranslations("Header");
@@ -390,4 +391,7 @@ export default function Page() {
       </div>
     </main>
   );
+}
+export default function RootPage() {
+  redirect('/en');
 }
