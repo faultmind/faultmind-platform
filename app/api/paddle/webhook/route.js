@@ -8,7 +8,7 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// Initialize Paddle Node SDK for signature verification
+// Initialize Paddle SDK for signature verification
 const paddle = new Paddle(process.env.PADDLE_API_KEY || "", {
   environment: Environment.sandbox,
 });
@@ -22,28 +22,35 @@ export async function POST(request) {
       return NextResponse.json({ error: "Missing signature" }, { status: 400 });
     }
 
-    // Verify webhook authenticity
+    // 1. Verify webhook authenticity (This will throw an error if the signature is invalid)
     const secretKey = process.env.PADDLE_WEBHOOK_SECRET_KEY;
-    const event = paddle.webhooks.unmarshal(rawBody, secretKey, signature);
+    paddle.webhooks.unmarshal(rawBody, secretKey, signature);
 
-    const eventType = event?.eventType;
-    const data = event?.data;
+    // 2. Bypass SDK mapping: Extract data directly from the raw JSON
+    const payload = JSON.parse(rawBody);
+    const eventType = payload.event_type;
+    const data = payload.data;
 
-    // Extract the Supabase User UID from custom_data
-    const userId = data?.customData?.userId;
+    // 3. Extract the Supabase User UID safely
+    const userId = data?.custom_data?.userId;
 
     if (!userId) {
       return NextResponse.json({ message: "No userId in customData, ignored" }, { status: 200 });
     }
 
-    // Handle Subscription Events
+    // 4. Handle Subscription and Transaction Events
     if (
       eventType === "subscription.created" ||
       eventType === "subscription.updated" ||
-      eventType === "subscription.activated"
+      eventType === "subscription.activated" ||
+      eventType === "transaction.completed"
     ) {
-      const subscriptionId = data.id;
-      const status = data.status; // 'active', 'trialing', 'past_due', etc.
+      // Transactions map the ID as subscription_id, whereas Subscriptions use id
+      const subscriptionId = data.subscription_id || data.id;
+      
+      // If it is a completed transaction, force the status to active
+      const status = eventType === "transaction.completed" ? "active" : data.status;
+      
       const priceId = data.items?.[0]?.price?.id || null;
 
       const { error: dbError } = await supabaseAdmin.from("subscriptions").upsert({
@@ -60,7 +67,7 @@ export async function POST(request) {
       }
     }
 
-    // Handle Subscription Cancellation
+    // 5. Handle Subscription Cancellation
     if (eventType === "subscription.canceled") {
       const { error: dbError } = await supabaseAdmin.from("subscriptions").update({
         status: "canceled",
