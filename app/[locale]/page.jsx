@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -8,11 +8,12 @@ export default function Page() {
   const tHeader = useTranslations("Header");
   const tAuth = useTranslations("Auth");
   const tPricing = useTranslations("Pricing");
-
+  
+  const locale = useLocale();
   const router = useRouter();
-  // const pathname = usePathname();
 
   const [user, setUser] = useState(null);
+  const [isSubscribed, setIsSubscribed] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authMode, setAuthMode] = useState("login"); // 'login' | 'signup'
@@ -28,15 +29,37 @@ export default function Page() {
       });
     }
 
+    const checkSubscription = async (userId) => {
+      const { data } = await supabase
+        .from("subscriptions")
+        .select("status")
+        .eq("user_id", userId)
+        .single();
+        
+      if (data && data.status === "active") {
+        setIsSubscribed(true);
+      } else {
+        setIsSubscribed(false);
+      }
+    };
+
     // Check active session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
+      if (session?.user) {
+        checkSubscription(session.user.id);
+      }
     });
 
     // Listen for auth changes
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setUser(session?.user ?? null);
+        if (session?.user) {
+          checkSubscription(session.user.id);
+        } else {
+          setIsSubscribed(false);
+        }
       }
     );
 
@@ -77,9 +100,10 @@ export default function Page() {
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
+    setIsSubscribed(false);
   };
 
- // 3. Paddle Checkout (passes Supabase User ID into custom_data)
+  // 3. Paddle Checkout (passes Supabase User ID into custom_data)
   const handleCheckout = () => {
     // Guard clause: Prevent checkout if the user session isn't fully loaded
     if (!user || !user.id) {
@@ -376,22 +400,41 @@ export default function Page() {
             </span>
           </div>
 
-          <button
-            onClick={handleCheckout}
-            style={{
-              backgroundColor: "#D9FF00",
-              color: "#0F172A",
-              padding: "12px 24px",
-              fontSize: "0.95rem",
-              fontWeight: 700,
-              borderRadius: "8px",
-              border: "none",
-              cursor: "pointer",
-              width: "100%",
-            }}
-          >
-            {tPricing("cta")}
-          </button>
+          {isSubscribed ? (
+            <button
+              onClick={() => router.push(`/${locale}/dashboard`)}
+              style={{
+                backgroundColor: "#4ADE80",
+                color: "#0F172A",
+                padding: "12px 24px",
+                fontSize: "0.95rem",
+                fontWeight: 700,
+                borderRadius: "8px",
+                border: "none",
+                cursor: "pointer",
+                width: "100%",
+              }}
+            >
+              Go to Dashboard
+            </button>
+          ) : (
+            <button
+              onClick={handleCheckout}
+              style={{
+                backgroundColor: "#D9FF00",
+                color: "#0F172A",
+                padding: "12px 24px",
+                fontSize: "0.95rem",
+                fontWeight: 700,
+                borderRadius: "8px",
+                border: "none",
+                cursor: "pointer",
+                width: "100%",
+              }}
+            >
+              {tPricing("cta")}
+            </button>
+          )}
         </div>
       </div>
     </main>
