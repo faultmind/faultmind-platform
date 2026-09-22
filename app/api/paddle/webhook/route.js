@@ -46,21 +46,31 @@ export async function POST(request) {
       const status = data.status; // 'active', 'trialing', 'past_due', etc.
       const priceId = data.items?.[0]?.price?.id || null;
 
-      await supabaseAdmin.from("subscriptions").upsert({
+      const { error: dbError } = await supabaseAdmin.from("subscriptions").upsert({
         user_id: userId,
         subscription_id: subscriptionId,
         status: status,
         price_id: priceId,
         updated_at: new Date().toISOString(),
       });
+
+      if (dbError) {
+        console.error("Supabase Upsert Error:", dbError.message);
+        return NextResponse.json({ error: dbError.message, details: dbError }, { status: 500 });
+      }
     }
 
     // Handle Subscription Cancellation
     if (eventType === "subscription.canceled") {
-      await supabaseAdmin.from("subscriptions").update({
+      const { error: dbError } = await supabaseAdmin.from("subscriptions").update({
         status: "canceled",
         updated_at: new Date().toISOString(),
       }).eq("user_id", userId);
+
+      if (dbError) {
+        console.error("Supabase Update Error:", dbError.message);
+        return NextResponse.json({ error: dbError.message, details: dbError }, { status: 500 });
+      }
     }
 
     return NextResponse.json({ received: true }, { status: 200 });
