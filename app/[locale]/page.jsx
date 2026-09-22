@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
-import { useRouter, usePathname } from "../../i18n/routing";
+import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 
 export default function Page() {
@@ -92,7 +92,7 @@ export default function Page() {
 
   // 4. Language Switcher Handler
   const changeLanguage = (nextLocale) => {
-    router.replace(pathname, { locale: nextLocale });
+    router.push(`/${nextLocale}`);
   };
 
   return (
