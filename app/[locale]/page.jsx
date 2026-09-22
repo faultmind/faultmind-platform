@@ -10,7 +10,7 @@ export default function Page() {
   const tPricing = useTranslations("Pricing");
 
   const router = useRouter();
-  const pathname = usePathname();
+  // const pathname = usePathname();
 
   const [user, setUser] = useState(null);
   const [email, setEmail] = useState("");
