@@ -1,0 +1,23 @@
+{
+  "Header": {
+    "badge": "FaultMind Engineering Core",
+    "title": "FaultMind Pro",
+    "subtitle": "Multi-tenant industrial diagnostics & root-cause analysis"
+  },
+  "Auth": {
+    "workEmail": "Work Email",
+    "password": "Password",
+    "signIn": "Sign In",
+    "signUp": "Create Account",
+    "needAccount": "Need an account? Sign up",
+    "haveAccount": "Already registered? Sign in",
+    "processing": "Processing...",
+    "connectedAs": "Connected as:",
+    "signOut": "Sign Out"
+  },
+  "Pricing": {
+    "price": "$15",
+    "cadence": " / month",
+    "cta": "Subscribe to FaultMind Pro"
+  }
+}
