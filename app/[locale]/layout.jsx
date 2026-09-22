@@ -2,7 +2,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { routing } from "../../i18n/routing";
-import "../../styles/globals.css"; // Adjusted relative path to root styles
+import "../../styles/globals.css";
 
 export const metadata = {
   title: "FaultMind - Industrial Diagnostics & AI Troubleshooting",
@@ -18,8 +18,8 @@ export default async function LocaleLayout({ children, params }) {
     notFound();
   }
 
-  // Load dictionaries corresponding to the active locale
-  const messages = await getMessages();
+  // Explicitly fetch messages for the route's current locale
+  const messages = await getMessages({ locale });
 
   // Set reading direction: Arabic = rtl, English/German = ltr
   const dir = locale === "ar" ? "rtl" : "ltr";
@@ -27,7 +27,7 @@ export default async function LocaleLayout({ children, params }) {
   return (
     <html lang={locale} dir={dir}>
       <body style={{ margin: 0, padding: 0, backgroundColor: "#0B0F19" }}>
-        <NextIntlClientProvider messages={messages}>
+        <NextIntlClientProvider locale={locale} messages={messages}>
           {children}
         </NextIntlClientProvider>
       </body>
