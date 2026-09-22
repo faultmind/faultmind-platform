@@ -30,11 +30,13 @@ export default function Page() {
     }
 
     const checkSubscription = async (userId) => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("subscriptions")
         .select("status")
         .eq("user_id", userId)
-        .single();
+        .maybeSingle(); 
+        
+      if (error) console.error("Supabase Error:", error.message);
         
       if (data && data.status === "active") {
         setIsSubscribed(true);
