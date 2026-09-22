@@ -35,27 +35,28 @@ export async function POST(request) {
     }
 
     // 3. Database Updates
-    if (
-      eventType === "subscription.created" ||
-      eventType === "subscription.updated" ||
-      eventType === "subscription.activated" ||
-      eventType === "transaction.completed"
-    ) {
-      const subscriptionId = data.subscription_id || data.id;
-      const status = eventType === "transaction.completed" ? "active" : data.status;
-      const priceId = data.items?.[0]?.price?.id || null;
+        if (
+          eventType === "subscription.created" ||
+          eventType === "subscription.updated" ||
+          eventType === "subscription.activated" ||
+          eventType === "transaction.completed"
+        ) {
+          const subscriptionId = data.subscription_id || data.id;
+          const status = eventType === "transaction.completed" ? "active" : data.status;
+          const priceId = data.items?.[0]?.price?.id || null;
 
-      const { error: dbError } = await supabaseAdmin.from("subscriptions").upsert({
-        user_id: userId,
-        subscription_id: subscriptionId,
-        status: status,
-        price_id: priceId,
-        updated_at: new Date().toISOString(),
-      });
+          const { error: dbError } = await supabaseAdmin.from("subscriptions").upsert({
+            user_id: userId,
+            subscription_id: subscriptionId,
+            status: status,
+            price_id: priceId,
+            updated_at: new Date().toISOString(),
+          }, { 
+            onConflict: 'user_id' // This prevents concurrent webhooks from crashing
+          });
 
-      if (dbError) throw dbError; // Triggers the catch block below
-    }
-
+          if (dbError) throw dbError; 
+        }
     if (eventType === "subscription.canceled") {
       const { error: dbError } = await supabaseAdmin.from("subscriptions").update({
         status: "canceled",
