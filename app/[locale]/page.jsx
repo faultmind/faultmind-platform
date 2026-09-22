@@ -79,13 +79,19 @@ export default function Page() {
     setUser(null);
   };
 
-  // 3. Paddle Checkout (passes Supabase User ID into custom_data)
+ // 3. Paddle Checkout (passes Supabase User ID into custom_data)
   const handleCheckout = () => {
+    // Guard clause: Prevent checkout if the user session isn't fully loaded
+    if (!user || !user.id) {
+      setStatusMsg("Please sign in or create an account before subscribing.");
+      return;
+    }
+
     if (typeof window !== "undefined" && window.Paddle) {
       window.Paddle.Checkout.open({
         items: [{ priceId: "pri_01m318yt98g9rfjwn8tmspze9h", quantity: 1 }],
-        customer: user ? { email: user.email } : undefined,
-        customData: user ? { userId: user.id } : {},
+        customer: { email: user.email },
+        customData: { userId: user.id }, // Guaranteed to exist now
       });
     }
   };
