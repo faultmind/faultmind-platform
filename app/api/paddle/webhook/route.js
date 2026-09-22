@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { Environment, Paddle } from "@paddle/paddle-node-sdk";
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 const paddle = new Paddle(process.env.PADDLE_API_KEY || "", {
   environment: Environment.sandbox,
@@ -14,9 +20,11 @@ export async function POST(request) {
       return NextResponse.json({ error: "Missing signature" }, { status: 400 });
     }
 
+    // 1. Cryptographic Security Check
     const secretKey = process.env.PADDLE_WEBHOOK_SECRET_KEY;
     paddle.webhooks.unmarshal(rawBody, secretKey, signature);
 
+    // 2. Data Extraction
     const payload = JSON.parse(rawBody);
     const eventType = payload.event_type;
     const data = payload.data;
@@ -26,6 +34,7 @@ export async function POST(request) {
       return NextResponse.json({ message: "No userId in customData, ignored" }, { status: 200 });
     }
 
+    // 3. Database Updates
     if (
       eventType === "subscription.created" ||
       eventType === "subscription.updated" ||
@@ -36,54 +45,30 @@ export async function POST(request) {
       const status = eventType === "transaction.completed" ? "active" : data.status;
       const priceId = data.items?.[0]?.price?.id || null;
 
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-
-      // --- DIAGNOSTIC INJECTION: Decode the JWT to reveal its true role ---
-      let decodedRole = "unknown";
-      try {
-         if (serviceRoleKey) {
-             // Split the JWT and decode the payload body
-             const jwtPayload = JSON.parse(Buffer.from(serviceRoleKey.split('.')[1], 'base64').toString());
-             decodedRole = jwtPayload.role;
-         } else {
-             decodedRole = "KEY_IS_EMPTY";
-         }
-      } catch (e) {
-         decodedRole = "INVALID_JWT_FORMAT";
-      }
-      // -------------------------------------------------------------------
-
-      const response = await fetch(`${supabaseUrl}/rest/v1/subscriptions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": serviceRoleKey,
-          "Authorization": `Bearer ${serviceRoleKey}`,
-          "Prefer": "resolution=merge-duplicates",
-        },
-        body: JSON.stringify({
-          user_id: userId,
-          subscription_id: subscriptionId,
-          status: status,
-          price_id: priceId,
-          updated_at: new Date().toISOString(),
-        }),
+      const { error: dbError } = await supabaseAdmin.from("subscriptions").upsert({
+        user_id: userId,
+        subscription_id: subscriptionId,
+        status: status,
+        price_id: priceId,
+        updated_at: new Date().toISOString(),
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        // Return the exact role Netlify is using inside the error response
-        return NextResponse.json({
-            error: "Database insertion failed",
-            diagnostic_role_detected: decodedRole,
-            supabase_error: JSON.parse(errorText)
-        }, { status: 500 });
-      }
+      if (dbError) throw dbError; // Triggers the catch block below
+    }
+
+    if (eventType === "subscription.canceled") {
+      const { error: dbError } = await supabaseAdmin.from("subscriptions").update({
+        status: "canceled",
+        updated_at: new Date().toISOString(),
+      }).eq("user_id", userId);
+
+      if (dbError) throw dbError;
     }
 
     return NextResponse.json({ received: true }, { status: 200 });
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    // Logs the real error to your private Netlify console, but returns a generic safe message to the web
+    console.error("Webhook Error:", error.message);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
