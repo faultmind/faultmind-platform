@@ -1,6 +1,7 @@
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
 import { notFound } from "next/navigation";
+import Script from "next/script";
 import { routing } from "../../i18n/routing";
 import "../../styles/globals.css";
 
@@ -26,6 +27,13 @@ export default async function LocaleLayout({ children, params }) {
 
   return (
     <html lang={locale} dir={dir}>
+      <head>
+        {/* Official Paddle.js v2 SDK */}
+        <Script
+          src="https://cdn.paddle.com/paddle/v2/paddle.js"
+          strategy="beforeInteractive"
+        />
+      </head>
       <body style={{ margin: 0, padding: 0, backgroundColor: "#0B0F19" }}>
         <NextIntlClientProvider locale={locale} messages={messages}>
           {children}
