@@ -21,6 +21,7 @@
   "Pricing": {
     "price": "15 €",
     "cadence": " / Monat",
-    "cta": "FaultMind Pro Abonnieren"
+    "cta": "FaultMind Pro Abonnieren",
+    "activeStatus": "Aktueller Tarif"
   }
 }
