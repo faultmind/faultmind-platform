@@ -24,7 +24,7 @@
     "cta": "FaultMind Pro Abonnieren",
     "activeStatus": "Aktueller Tarif"
   },
-  "Dashboard": {
+"Dashboard": {
     "title": "Industrielle Diagnosezentrale",
     "subtitle": "Analysieren Sie Maschinenausfälle, SPS-Logik und Alarmprotokolle.",
     "signOut": "Abmelden",
@@ -32,8 +32,17 @@
     "analyzeBtn": "Fehler analysieren",
     "analyzing": "Wird analysiert...",
     "loading": "Diagnosebereich wird geladen...",
-    "findingsTitle": "Diagnoseergebnisse",
-    "rootCausesTitle": "Wahrscheinliche Ursachen",
-    "actionStepsTitle": "Empfohlene Maßnahmen"
+    "selectMachine": "Maschine auswählen (Optional)",
+    "noMachine": "-- Allgemeine Diagnose (Keine Maschine) --",
+    "addMachineBtn": "+ Maschine hinzufügen",
+    "machineName": "Maschinenbezeichnung",
+    "machineModel": "SPS / Steuerungsmodell",
+    "saveMachine": "Maschine speichern",
+    "cancel": "Abbrechen",
+    "uploadDoc": "Handbuch / Schaltplan anhängen",
+    "uploading": "Datei wird hochgeladen...",
+    "recentHistory": "Diagnose-Verlauf",
+    "noHistory": "Noch keine Diagnosen gespeichert.",
+    "filesAttached": "Angehängte Dokumente:"
   }
 }
