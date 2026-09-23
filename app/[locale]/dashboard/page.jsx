@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
-import { supabase } from "@/lib/supabaseClient"; // adjust path if your client is in another folder
+import { supabase } from "../../lib/supabaseClient"; // adjust path if your client is in another folder
 
 export default function DashboardPage() {
   const t = useTranslations("Dashboard");
