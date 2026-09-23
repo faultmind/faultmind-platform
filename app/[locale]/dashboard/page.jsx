@@ -159,7 +159,7 @@ export default function DashboardPage() {
           {t("signOut")}
         </button>
       </header>
-
+      const isArabic = (text) => /[\u0600-\u06FF]/.test(text || "");
       {/* Main Diagnostics Workspace */}
       <main style={{ maxWidth: "1100px", margin: "0 auto" }}>
         <div style={{ marginBottom: "1.5rem" }}>
