@@ -109,14 +109,19 @@ Do not add markdown blocks (\`\`\`json) outside the JSON.`;
 
     const parsedContent = JSON.parse(response.choices[0].message.content);
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        query: faultQuery,
-        probableRootCauses: parsedContent.probableRootCauses || [],
-        recommendedActionSteps: parsedContent.recommendedActionSteps || [],
-      },
-    });
+return NextResponse.json({
+  success: true,
+  data: {
+    query: faultQuery,
+    direction: parsedContent.direction || "ltr",
+    findingsTitle: parsedContent.findingsTitle,
+    rootCausesTitle: parsedContent.rootCausesTitle,
+    actionStepsTitle: parsedContent.actionStepsTitle,
+    probableRootCauses: parsedContent.probableRootCauses || [],
+    recommendedActionSteps: parsedContent.recommendedActionSteps || [],
+  },
+});
+    
   } catch (err) {
     console.error("Diagnosis API Error:", err);
     return NextResponse.json(
