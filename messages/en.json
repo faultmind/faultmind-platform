@@ -25,7 +25,7 @@
     "activeStatus": "Current Plan"
   },
   
-  "Dashboard": {
+"Dashboard": {
     "title": "Industrial Diagnostics Hub",
     "subtitle": "Analyze machine downtime, PLC logic, and alarm histories.",
     "signOut": "Sign Out",
@@ -33,9 +33,18 @@
     "analyzeBtn": "Diagnose Fault",
     "analyzing": "Analyzing...",
     "loading": "Loading diagnostics workspace...",
-    "findingsTitle": "Diagnostic Findings",
-    "rootCausesTitle": "Probable Root Causes",
-    "actionStepsTitle": "Recommended Action Steps"
+    "selectMachine": "Select Machine (Optional)",
+    "noMachine": "-- General Diagnostic (No Machine) --",
+    "addMachineBtn": "+ Add Machine",
+    "machineName": "Machine Name",
+    "machineModel": "PLC / Controller Model",
+    "saveMachine": "Save Machine",
+    "cancel": "Cancel",
+    "uploadDoc": "Attach Manual / Schematic",
+    "uploading": "Uploading file...",
+    "recentHistory": "Diagnostic Log History",
+    "noHistory": "No saved diagnostics yet.",
+    "filesAttached": "Attached Documents:"
   }
 }
 
