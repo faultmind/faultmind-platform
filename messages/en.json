@@ -24,12 +24,18 @@
     "cta": "Subscribe to FaultMind Pro",
     "activeStatus": "Current Plan"
   },
+  {
   "Dashboard": {
     "title": "Industrial Diagnostics Hub",
     "subtitle": "Analyze machine downtime, PLC logic, and alarm histories.",
     "signOut": "Sign Out",
-    "accessDenied": "Active subscription required to access the diagnostics workspace.",
     "inputPlaceholder": "Paste PLC alarm codes, machine fault symptoms, or logic snippets...",
-    "analyzeBtn": "Diagnose Fault"
+    "analyzeBtn": "Diagnose Fault",
+    "analyzing": "Analyzing...",
+    "loading": "Loading diagnostics workspace...",
+    "findingsTitle": "Diagnostic Findings",
+    "rootCausesTitle": "Probable Root Causes",
+    "actionStepsTitle": "Recommended Action Steps"
   }
+}
 }
