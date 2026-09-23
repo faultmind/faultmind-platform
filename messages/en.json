@@ -24,7 +24,7 @@
     "cta": "Subscribe to FaultMind Pro",
     "activeStatus": "Current Plan"
   },
-  {
+  
   "Dashboard": {
     "title": "Industrial Diagnostics Hub",
     "subtitle": "Analyze machine downtime, PLC logic, and alarm histories.",
@@ -38,4 +38,4 @@
     "actionStepsTitle": "Recommended Action Steps"
   }
 }
-}
+
