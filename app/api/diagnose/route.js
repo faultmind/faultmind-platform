@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-// Initialize Supabase with the service role to verify the requesting user
+// Initialize Supabase Admin client to verify tokens and subscription status safely
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -18,7 +18,10 @@ export async function POST(request) {
     }
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    const {
+      data: { user },
+      error: authError,
+    } = await supabaseAdmin.auth.getUser(token);
 
     if (authError || !user) {
       return NextResponse.json(
@@ -27,7 +30,7 @@ export async function POST(request) {
       );
     }
 
-    // Verify active subscription status
+    // 1. Verify active subscription
     const { data: subData, error: subError } = await supabaseAdmin
       .from("subscriptions")
       .select("status")
@@ -41,28 +44,30 @@ export async function POST(request) {
       );
     }
 
+    // 2. Parse request body
     const { faultQuery, locale } = await request.json();
 
     if (!faultQuery || faultQuery.trim().length === 0) {
       return NextResponse.json(
-        { error: "Fault query cannot be empty" },
+        { error: "Fault description cannot be empty" },
         { status: 400 }
       );
     }
 
-    // Placeholder diagnostic output structure (ready for LLM/rule engine connection)
+    // 3. Structured diagnostic response
+    // (This is the insertion point for your LLM or fault logic engine)
     const diagnosisResult = {
       query: faultQuery,
       status: "completed",
       probableRootCauses: [
-        "Sensor input signal dropout or degraded wiring connection.",
-        "Internal PLC latch condition unresolved after emergency-stop reset.",
-        "VFD overcurrent trip during rapid acceleration profile."
+        "Sensor 24V DC auxiliary line drop or degraded terminal contact.",
+        "Emergency-stop latch loop open or unacknowledged safety relay trip.",
+        "Drive bus undervoltage or overcurrent during dynamic load profile."
       ],
       recommendedActionSteps: [
-        "Verify 24V DC auxiliary power rail at the terminal strip.",
-        "Inspect corresponding input bit status in online monitoring / VAT table.",
-        "Check mechanical drive assembly for jamming before resetting motor protection."
+        "Measure terminal rail voltage directly at the I/O block with a DMM.",
+        "Inspect the online diagnostic buffer and variable table (VAT) for active interlocks.",
+        "Verify motor brake release signal and check mechanical drive train for binding."
       ]
     };
 
