@@ -13,7 +13,10 @@
     "haveAccount": "Bereits registriert? Anmelden",
     "processing": "Wird verarbeitet...",
     "connectedAs": "Angemeldet als:",
-    "signOut": "Abmelden"
+    "signOut": "Abmelden",
+    "accountExists": "Ein Konto mit dieser E-Mail existiert bereits. Bitte melden Sie sich an.",
+    "checkEmail": "Konto erstellt! Bitte überprüfen Sie Ihre E-Mails zur Bestätigung.",
+    "loginSuccess": "Erfolgreich angemeldet."
   },
   "Pricing": {
     "price": "15 €",
