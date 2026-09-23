@@ -23,5 +23,13 @@
     "cadence": " / Monat",
     "cta": "FaultMind Pro Abonnieren",
     "activeStatus": "Aktueller Tarif"
+  },
+  "Dashboard": {
+    "title": "Industrielle Diagnosezentrale",
+    "subtitle": "Analysieren Sie Maschinenausfälle, SPS-Logik und Alarmprotokolle.",
+    "signOut": "Abmelden",
+    "accessDenied": "Aktives Abonnement erforderlich, um auf den Diagnosebereich zuzugreifen.",
+    "inputPlaceholder": "Fügen Sie SPS-Alarmcodes, Fehlersymptome oder Logikausschnitte ein...",
+    "analyzeBtn": "Fehler analysieren"
   }
 }
