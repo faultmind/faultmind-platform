@@ -238,63 +238,64 @@ export default function DashboardPage() {
 
           {/* Diagnostic Results Presentation */}
           {result && (
-            <div
-              style={{
-                marginTop: "2rem",
-                backgroundColor: "#0B0F17",
-                border: "1px solid #1E293B",
-                borderRadius: "6px",
-                padding: "1.5rem",
-                textAlign: "start",
-              }}
-            >
-              <h3 style={{ color: "#38BDF8", marginTop: 0 }}>
-                {t("findingsTitle")}
-              </h3>
+  <div
+    dir={result.direction || "ltr"}
+    style={{
+      marginTop: "2rem",
+      backgroundColor: "#0B0F17",
+      border: "1px solid #1E293B",
+      borderRadius: "6px",
+      padding: "1.5rem",
+      textAlign: "start",
+    }}
+  >
+    <h3 style={{ color: "#38BDF8", marginTop: 0 }}>
+      {result.findingsTitle || t("findingsTitle")}
+    </h3>
 
-              <h4 style={{ color: "#F8FAFC", marginBottom: "0.5rem" }}>
-                {t("rootCausesTitle")}:
-              </h4>
-              <ul
-                style={{
-                  color: "#CBD5E1",
-                  lineHeight: 1.7,
-                  paddingInlineStart: "1.5rem",
-                  margin: 0,
-                }}
-              >
-                {result.probableRootCauses.map((cause, idx) => (
-                  <li key={idx} dir="auto" style={{ marginBottom: "0.35rem" }}>
-                    {cause}
-                  </li>
-                ))}
-              </ul>
+    <h4 style={{ color: "#F8FAFC", marginBottom: "0.5rem" }}>
+      {(result.rootCausesTitle || t("rootCausesTitle")) + ":"}
+    </h4>
+    <ul
+      style={{
+        color: "#CBD5E1",
+        lineHeight: 1.8,
+        paddingInlineStart: "1.5rem",
+        margin: 0,
+      }}
+    >
+      {result.probableRootCauses.map((cause, idx) => (
+        <li key={idx} style={{ marginBottom: "0.35rem" }}>
+          {cause}
+        </li>
+      ))}
+    </ul>
 
-              <h4
-                style={{
-                  color: "#F8FAFC",
-                  marginBottom: "0.5rem",
-                  marginTop: "1.5rem",
-                }}
-              >
-                {t("actionStepsTitle")}:
-              </h4>
-              <ol
-                style={{
-                  color: "#CBD5E1",
-                  lineHeight: 1.7,
-                  paddingInlineStart: "1.5rem",
-                  margin: 0,
-                }}
-              >
-                {result.recommendedActionSteps.map((step, idx) => (
-                  <li key={idx} dir="auto" style={{ marginBottom: "0.35rem" }}>
-                    {step}
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
+    <h4
+      style={{
+        color: "#F8FAFC",
+        marginBottom: "0.5rem",
+        marginTop: "1.5rem",
+      }}
+    >
+      {(result.actionStepsTitle || t("actionStepsTitle")) + ":"}
+    </h4>
+    <ol
+      style={{
+        color: "#CBD5E1",
+        lineHeight: 1.8,
+        paddingInlineStart: "1.5rem",
+        margin: 0,
+      }}
+    >
+      {result.recommendedActionSteps.map((step, idx) => (
+        <li key={idx} style={{ marginBottom: "0.35rem" }}>
+          {step}
+        </li>
+      ))}
+    </ol>
+  </div>
+)}
         </div>
       </main>
     </div>
