@@ -80,19 +80,27 @@ export default function Page() {
 
     try {
       if (authMode === "signup") {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
         });
         if (error) throw error;
-        setStatusMsg("Account created! Check your email to confirm registration.");
+
+        // Detect if the email already exists
+        if (data?.user?.identities && data.user.identities.length === 0) {
+          setStatusMsg(tAuth("accountExists"));
+          setAuthMode("login");
+          return;
+        }
+
+        setStatusMsg(tAuth("checkEmail"));
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         if (error) throw error;
-        setStatusMsg("Logged in successfully.");
+        setStatusMsg(tAuth("loginSuccess"));
       }
     } catch (err) {
       setStatusMsg(err.message);
