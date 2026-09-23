@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import OpenAI from "openai";
 
-// Initialize Supabase Admin client to verify tokens and subscription status safely
+// Supabase Admin for verifying Auth & Subscription
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
+
+// OpenAI Client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 export async function POST(request) {
   try {
@@ -44,8 +50,8 @@ export async function POST(request) {
       );
     }
 
-    // 2. Parse request body
-    const { faultQuery, locale } = await request.json();
+    // 2. Parse request payload
+    const { faultQuery, locale = "en" } = await request.json();
 
     if (!faultQuery || faultQuery.trim().length === 0) {
       return NextResponse.json(
@@ -54,25 +60,54 @@ export async function POST(request) {
       );
     }
 
-    // 3. Structured diagnostic response
-    // (This is the insertion point for your LLM or fault logic engine)
-    const diagnosisResult = {
-      query: faultQuery,
-      status: "completed",
-      probableRootCauses: [
-        "Sensor 24V DC auxiliary line drop or degraded terminal contact.",
-        "Emergency-stop latch loop open or unacknowledged safety relay trip.",
-        "Drive bus undervoltage or overcurrent during dynamic load profile."
-      ],
-      recommendedActionSteps: [
-        "Measure terminal rail voltage directly at the I/O block with a DMM.",
-        "Inspect the online diagnostic buffer and variable table (VAT) for active interlocks.",
-        "Verify motor brake release signal and check mechanical drive train for binding."
-      ]
+    // 3. Map language requirements
+    const languageMap = {
+      en: "English",
+      ar: "Arabic (professional industrial engineering terminology)",
+      de: "German (technische Fachbegriffe für Automatisierung)",
     };
+    const targetLanguage = languageMap[locale] || "English";
 
-    return NextResponse.json({ success: true, data: diagnosisResult });
+    // 4. Industrial automation system prompt
+    const systemPrompt = `You are an expert senior industrial automation and electrical maintenance engineer.
+Analyze the user's machine fault symptoms, PLC alarm codes, sensor issues, or drive failures.
+Provide precise, practical, actionable diagnostics focusing on:
+- Hardware, sensor loop integrity, 24V DC auxiliary power rails.
+- PLC logic interlocks, safety relays, and diagnostic buffers (VAT/tag tables).
+- Motor protection, VFD fault codes, and mechanical drive binding.
+
+CRITICAL INSTRUCTIONS:
+- You MUST answer in ${targetLanguage}.
+- Return ONLY a valid JSON object matching this schema:
+{
+  "probableRootCauses": ["Cause 1", "Cause 2", "Cause 3"],
+  "recommendedActionSteps": ["Step 1", "Step 2", "Step 3"]
+}
+- Do not add markdown blocks (\`\`\`json) outside the JSON.`;
+
+    // 5. Call OpenAI API
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini", // Cost-effective, high speed, and accurate for structured parsing
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `Fault description: ${faultQuery}` },
+      ],
+      temperature: 0.2, // Low temperature for consistent, factual troubleshooting steps
+    });
+
+    const parsedContent = JSON.parse(response.choices[0].message.content);
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        query: faultQuery,
+        probableRootCauses: parsedContent.probableRootCauses || [],
+        recommendedActionSteps: parsedContent.recommendedActionSteps || [],
+      },
+    });
   } catch (err) {
+    console.error("Diagnosis API Error:", err);
     return NextResponse.json(
       { error: "Internal server error: " + err.message },
       { status: 500 }
