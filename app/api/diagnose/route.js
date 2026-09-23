@@ -69,7 +69,9 @@ export async function POST(request) {
     const fallbackLang = fallbackLanguageMap[locale] || "English";
 
     // 4. Industrial automation system prompt (Natural language matching)
-    const systemPrompt = `You are an expert senior industrial automation and electrical maintenance engineer.
+    // Inside app/api/diagnose/route.js
+
+const systemPrompt = `You are an expert senior industrial automation and electrical maintenance engineer.
 Analyze the user's machine fault symptoms, PLC alarm codes, sensor issues, or drive failures.
 Provide precise, practical, actionable diagnostics focusing on:
 - Hardware, sensor loop integrity, and 24V DC auxiliary power rails.
@@ -77,17 +79,23 @@ Provide precise, practical, actionable diagnostics focusing on:
 - Motor protection, VFD fault codes, and mechanical drive binding.
 
 CRITICAL LANGUAGE RULE:
-- You MUST detect and respond in the EXACT same language that the user used in the fault description (e.g., if the user wrote in Arabic, respond in Arabic; if in German, respond in German; if in English, respond in English).
-- If the user's input consists purely of codes/numbers/symbols without a clear language, respond in ${fallbackLang}.
+- Detect the exact language used by the user in the fault description and respond entirely in that language.
+- Translate the section titles ("findingsTitle", "rootCausesTitle", "actionStepsTitle") into the detected language as well.
+- Determine if the language is right-to-left ("rtl" for Arabic, Hebrew, Urdu) or left-to-right ("ltr" for English, German, etc.).
+- If the input is purely technical codes or numbers without linguistic clues, fallback to ${fallbackLang}.
 
 OUTPUT FORMAT:
-- Return ONLY a valid JSON object matching this schema:
+Return ONLY a valid JSON object matching this schema:
 {
+  "direction": "rtl" | "ltr",
+  "findingsTitle": "Localized heading for Diagnostic Findings",
+  "rootCausesTitle": "Localized heading for Probable Root Causes",
+  "actionStepsTitle": "Localized heading for Recommended Action Steps",
   "probableRootCauses": ["Cause 1", "Cause 2", "Cause 3"],
   "recommendedActionSteps": ["Step 1", "Step 2", "Step 3"]
 }
-- Do not add markdown blocks (\`\`\`json) outside the JSON.`;
-
+Do not add markdown blocks (\`\`\`json) outside the JSON.`;
+    
     // 5. Call OpenAI API
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini", // Cost-effective, high speed, and accurate for structured parsing
