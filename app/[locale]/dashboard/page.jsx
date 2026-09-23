@@ -109,27 +109,47 @@ export default function DashboardPage() {
     router.replace(`/${locale}`);
   };
 
-  // Add new machine record
+// Add new machine record with explicit error handling
   const handleCreateMachine = async (e) => {
     e.preventDefault();
     if (!newMachineName.trim()) return;
 
-    const { data, error } = await supabase
-      .from("machines")
-      .insert({
-        user_id: user.id,
-        name: newMachineName.trim(),
-        brand_model: newMachineModel.trim() || null,
-      })
-      .select()
-      .single();
+    setErrorMsg("");
 
-    if (!error && data) {
-      setMachines([data, ...machines]);
-      setSelectedMachineId(data.id);
-      setNewMachineName("");
-      setNewMachineModel("");
-      setShowAddMachine(false);
+    try {
+      // 1. Ensure user is available
+      const activeUser = user || (await supabase.auth.getUser()).data?.user;
+      if (!activeUser) {
+        throw new Error("User session expired. Please sign in again.");
+      }
+
+      // 2. Insert new machine record
+      const { data, error } = await supabase
+        .from("machines")
+        .insert([
+          {
+            user_id: activeUser.id,
+            name: newMachineName.trim(),
+            brand_model: newMachineModel.trim() || null,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      if (data) {
+        setMachines((prev) => [data, ...prev]);
+        setSelectedMachineId(data.id);
+        setNewMachineName("");
+        setNewMachineModel("");
+        setShowAddMachine(false);
+      }
+    } catch (err) {
+      console.error("Machine Creation Error:", err);
+      setErrorMsg(err.message || "Failed to create machine");
     }
   };
 
