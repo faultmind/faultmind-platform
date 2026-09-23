@@ -21,6 +21,7 @@
   "Pricing": {
     "price": "$15",
     "cadence": " / month",
-    "cta": "Subscribe to FaultMind Pro"
+    "cta": "Subscribe to FaultMind Pro",
+    "activeStatus": "Current Plan"
   }
 }
