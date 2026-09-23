@@ -14,7 +14,7 @@
     "processing": "Wird verarbeitet...",
     "connectedAs": "Angemeldet als:",
     "signOut": "Abmelden",
-    "accountExists": "Ein Konto mit dieser E-Mail existiert bereits. Bitte melden Sie sich an.",
+    "accountExists": "Ein Konto mit dieser E-Mail existiert bereits. Bitte geben Sie Ihr Passwort ein, um sich anzumelden.",
     "checkEmail": "Konto erstellt! Bitte überprüfen Sie Ihre E-Mails zur Bestätigung.",
     "loginSuccess": "Erfolgreich angemeldet."
   },
