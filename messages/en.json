@@ -13,7 +13,10 @@
     "haveAccount": "Already registered? Sign in",
     "processing": "Processing...",
     "connectedAs": "Connected as:",
-    "signOut": "Sign Out"
+    "signOut": "Sign Out",
+    "accountExists": "An account with this email already exists. Please switch to Sign In.",
+    "checkEmail": "Account created! Check your email to confirm registration.",
+    "loginSuccess": "Logged in successfully."
   },
   "Pricing": {
     "price": "$15",
