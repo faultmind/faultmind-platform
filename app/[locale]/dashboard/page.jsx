@@ -250,50 +250,58 @@ export default function DashboardPage() {
     }}
   >
     <h3 style={{ color: "#38BDF8", marginTop: 0 }}>
-      {result.findingsTitle || t("findingsTitle")}
+      {result.mainTitle || "Diagnostic Findings"}
     </h3>
 
-    <h4 style={{ color: "#F8FAFC", marginBottom: "0.5rem" }}>
-      {(result.rootCausesTitle || t("rootCausesTitle")) + ":"}
-    </h4>
-    <ul
-      style={{
-        color: "#CBD5E1",
-        lineHeight: 1.8,
-        paddingInlineStart: "1.5rem",
-        margin: 0,
-      }}
-    >
-      {result.probableRootCauses.map((cause, idx) => (
-        <li key={idx} style={{ marginBottom: "0.35rem" }}>
-          {cause}
-        </li>
-      ))}
-    </ul>
+    {result.sectionOneItems?.length > 0 && (
+      <>
+        <h4 style={{ color: "#F8FAFC", marginBottom: "0.5rem" }}>
+          {result.sectionOneTitle}:
+        </h4>
+        <ul
+          style={{
+            color: "#CBD5E1",
+            lineHeight: 1.8,
+            paddingInlineStart: "1.5rem",
+            margin: 0,
+          }}
+        >
+          {result.sectionOneItems.map((item, idx) => (
+            <li key={idx} style={{ marginBottom: "0.35rem" }}>
+              {item}
+            </li>
+          ))}
+        </ul>
+      </>
+    )}
 
-    <h4
-      style={{
-        color: "#F8FAFC",
-        marginBottom: "0.5rem",
-        marginTop: "1.5rem",
-      }}
-    >
-      {(result.actionStepsTitle || t("actionStepsTitle")) + ":"}
-    </h4>
-    <ol
-      style={{
-        color: "#CBD5E1",
-        lineHeight: 1.8,
-        paddingInlineStart: "1.5rem",
-        margin: 0,
-      }}
-    >
-      {result.recommendedActionSteps.map((step, idx) => (
-        <li key={idx} style={{ marginBottom: "0.35rem" }}>
-          {step}
-        </li>
-      ))}
-    </ol>
+    {result.sectionTwoItems?.length > 0 && (
+      <>
+        <h4
+          style={{
+            color: "#F8FAFC",
+            marginBottom: "0.5rem",
+            marginTop: "1.5rem",
+          }}
+        >
+          {result.sectionTwoTitle}:
+        </h4>
+        <ol
+          style={{
+            color: "#CBD5E1",
+            lineHeight: 1.8,
+            paddingInlineStart: "1.5rem",
+            margin: 0,
+          }}
+        >
+          {result.sectionTwoItems.map((step, idx) => (
+            <li key={idx} style={{ marginBottom: "0.35rem" }}>
+              {step}
+            </li>
+          ))}
+        </ol>
+      </>
+    )}
   </div>
 )}
         </div>
