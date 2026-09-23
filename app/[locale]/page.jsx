@@ -405,14 +405,35 @@ export default function Page() {
             textAlign: "center",
           }}
         >
-          <div style={{ margin: "1rem 0" }}>
-            <span style={{ fontSize: "2.25rem", fontWeight: 800 }}>
-              {tPricing("price")}
-            </span>
-            <span style={{ color: "#94A3B8", fontSize: "0.95rem" }}>
-              {tPricing("cadence")}
-            </span>
-          </div>
+          {/* Hide price and cadence if already subscribed */}
+          {!isSubscribed ? (
+            <div style={{ margin: "1rem 0" }}>
+              <span style={{ fontSize: "2.25rem", fontWeight: 800 }}>
+                {tPricing("price")}
+              </span>
+              <span style={{ color: "#94A3B8", fontSize: "0.95rem" }}>
+                {tPricing("cadence")}
+              </span>
+            </div>
+          ) : (
+            <div style={{ margin: "1rem 0" }}>
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  padding: "0.35rem 0.85rem",
+                  borderRadius: "9999px",
+                  fontSize: "0.875rem",
+                  fontWeight: 600,
+                  color: "#34D399",
+                  backgroundColor: "rgba(16, 185, 129, 0.12)",
+                  border: "1px solid rgba(16, 185, 129, 0.25)",
+                }}
+              >
+                ● {tPricing("activeStatus") || "Current Plan"}
+              </span>
+            </div>
+          )}
 
           {isSubscribed ? (
             <button
