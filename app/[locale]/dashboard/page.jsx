@@ -102,7 +102,7 @@ export default function DashboardPage() {
           fontFamily: "sans-serif",
         }}
       >
-        <p>Loading diagnostics workspace...</p>
+        <p>{t("loading") || "Loading diagnostics workspace..."}</p>
       </div>
     );
   }
@@ -159,7 +159,7 @@ export default function DashboardPage() {
           {t("signOut")}
         </button>
       </header>
-      const isArabic = (text) => /[\u0600-\u06FF]/.test(text || "");
+
       {/* Main Diagnostics Workspace */}
       <main style={{ maxWidth: "1100px", margin: "0 auto" }}>
         <div style={{ marginBottom: "1.5rem" }}>
@@ -176,26 +176,25 @@ export default function DashboardPage() {
             padding: "1.5rem",
           }}
         >
-
           <textarea
-  rows={6}
-  dir="auto"
-  value={faultQuery}
-  onChange={(e) => setFaultQuery(e.target.value)}
-  placeholder={t("inputPlaceholder")}
-  style={{
-    width: "100%",
-    backgroundColor: "#0B0F17",
-    border: "1px solid #334155",
-    borderRadius: "6px",
-    color: "#F8FAFC",
-    padding: "1rem",
-    fontSize: "0.95rem",
-    resize: "vertical",
-    boxSizing: "border-box",
-    textAlign: "start",
-  }}
-/>
+            rows={6}
+            dir="auto"
+            value={faultQuery}
+            onChange={(e) => setFaultQuery(e.target.value)}
+            placeholder={t("inputPlaceholder")}
+            style={{
+              width: "100%",
+              backgroundColor: "#0B0F17",
+              border: "1px solid #334155",
+              borderRadius: "6px",
+              color: "#F8FAFC",
+              padding: "1rem",
+              fontSize: "0.95rem",
+              resize: "vertical",
+              boxSizing: "border-box",
+              textAlign: "start",
+            }}
+          />
 
           <div
             style={{
@@ -218,17 +217,19 @@ export default function DashboardPage() {
                 opacity: faultQuery.trim() && !analyzing ? 1 : 0.5,
               }}
             >
-              {analyzing ? "Analyzing..." : t("analyzeBtn")}
+              {analyzing ? t("analyzing") || "Analyzing..." : t("analyzeBtn")}
             </button>
           </div>
 
           {/* Error Message Display */}
           {errorMsg && (
             <p
+              dir="auto"
               style={{
                 color: "#EF4444",
                 marginTop: "1rem",
                 fontSize: "0.9rem",
+                textAlign: "start",
               }}
             >
               {errorMsg}
@@ -244,18 +245,28 @@ export default function DashboardPage() {
                 border: "1px solid #1E293B",
                 borderRadius: "6px",
                 padding: "1.5rem",
+                textAlign: "start",
               }}
             >
               <h3 style={{ color: "#38BDF8", marginTop: 0 }}>
-                Diagnostic Findings
+                {t("findingsTitle")}
               </h3>
 
               <h4 style={{ color: "#F8FAFC", marginBottom: "0.5rem" }}>
-                Probable Root Causes:
+                {t("rootCausesTitle")}:
               </h4>
-              <ul style={{ color: "#CBD5E1", lineHeight: 1.6 }}>
+              <ul
+                style={{
+                  color: "#CBD5E1",
+                  lineHeight: 1.7,
+                  paddingInlineStart: "1.5rem",
+                  margin: 0,
+                }}
+              >
                 {result.probableRootCauses.map((cause, idx) => (
-                  <li key={idx}>{cause}</li>
+                  <li key={idx} dir="auto" style={{ marginBottom: "0.35rem" }}>
+                    {cause}
+                  </li>
                 ))}
               </ul>
 
@@ -263,14 +274,23 @@ export default function DashboardPage() {
                 style={{
                   color: "#F8FAFC",
                   marginBottom: "0.5rem",
-                  marginTop: "1.25rem",
+                  marginTop: "1.5rem",
                 }}
               >
-                Recommended Action Steps:
+                {t("actionStepsTitle")}:
               </h4>
-              <ol style={{ color: "#CBD5E1", lineHeight: 1.6 }}>
+              <ol
+                style={{
+                  color: "#CBD5E1",
+                  lineHeight: 1.7,
+                  paddingInlineStart: "1.5rem",
+                  margin: 0,
+                }}
+              >
                 {result.recommendedActionSteps.map((step, idx) => (
-                  <li key={idx}>{step}</li>
+                  <li key={idx} dir="auto" style={{ marginBottom: "0.35rem" }}>
+                    {step}
+                  </li>
                 ))}
               </ol>
             </div>
