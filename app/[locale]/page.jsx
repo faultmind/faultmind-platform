@@ -73,6 +73,7 @@ export default function Page() {
   }, []);
 
   // 2. Auth Actions
+  // 2. Auth Actions
   const handleAuth = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -86,10 +87,11 @@ export default function Page() {
         });
         if (error) throw error;
 
-        // Detect if the email already exists
+        // Detect if the email already exists under User Enumeration Protection
         if (data?.user?.identities && data.user.identities.length === 0) {
           setStatusMsg(tAuth("accountExists"));
-          setAuthMode("login");
+          setPassword(""); // Clear password field for sign-in
+          setAuthMode("login"); // Automatically switch form to login mode
           return;
         }
 
