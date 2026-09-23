@@ -176,25 +176,26 @@ export default function DashboardPage() {
             padding: "1.5rem",
           }}
         >
+
           <textarea
-            rows={6}
-            dir="auto"
-            value={faultQuery}
-            onChange={(e) => setFaultQuery(e.target.value)}
-            placeholder={t("inputPlaceholder")}
-            style={{
-              width: "100%",
-              backgroundColor: "#0B0F17",
-              border: "1px solid #334155",
-              borderRadius: "6px",
-              color: "#F8FAFC",
-              padding: "1rem",
-              fontSize: "0.95rem",
-              resize: "vertical",
-              boxSizing: "border-box",
-              textAlign: "start",
-            }}
-          />
+  rows={6}
+  dir={faultQuery.trim().length > 0 ? "auto" : (locale === "ar" ? "rtl" : "ltr")}
+  value={faultQuery}
+  onChange={(e) => setFaultQuery(e.target.value)}
+  placeholder={t("inputPlaceholder")}
+  style={{
+    width: "100%",
+    backgroundColor: "#0B0F17",
+    border: "1px solid #334155",
+    borderRadius: "6px",
+    color: "#F8FAFC",
+    padding: "1rem",
+    fontSize: "0.95rem",
+    resize: "vertical",
+    boxSizing: "border-box",
+    textAlign: "start",
+  }}
+/>
 
           <div
             style={{
