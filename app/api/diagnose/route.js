@@ -60,24 +60,27 @@ export async function POST(request) {
       );
     }
 
-    // 3. Map language requirements
-    const languageMap = {
+// 3. Fallback locale name if the query has no linguistic text (e.g. only fault codes)
+    const fallbackLanguageMap = {
       en: "English",
-      ar: "Arabic (professional industrial engineering terminology)",
-      de: "German (technische Fachbegriffe für Automatisierung)",
+      ar: "Arabic",
+      de: "German",
     };
-    const targetLanguage = languageMap[locale] || "English";
+    const fallbackLang = fallbackLanguageMap[locale] || "English";
 
-    // 4. Industrial automation system prompt
+    // 4. Industrial automation system prompt (Natural language matching)
     const systemPrompt = `You are an expert senior industrial automation and electrical maintenance engineer.
 Analyze the user's machine fault symptoms, PLC alarm codes, sensor issues, or drive failures.
 Provide precise, practical, actionable diagnostics focusing on:
-- Hardware, sensor loop integrity, 24V DC auxiliary power rails.
+- Hardware, sensor loop integrity, and 24V DC auxiliary power rails.
 - PLC logic interlocks, safety relays, and diagnostic buffers (VAT/tag tables).
 - Motor protection, VFD fault codes, and mechanical drive binding.
 
-CRITICAL INSTRUCTIONS:
-- You MUST answer in ${targetLanguage}.
+CRITICAL LANGUAGE RULE:
+- You MUST detect and respond in the EXACT same language that the user used in the fault description (e.g., if the user wrote in Arabic, respond in Arabic; if in German, respond in German; if in English, respond in English).
+- If the user's input consists purely of codes/numbers/symbols without a clear language, respond in ${fallbackLang}.
+
+OUTPUT FORMAT:
 - Return ONLY a valid JSON object matching this schema:
 {
   "probableRootCauses": ["Cause 1", "Cause 2", "Cause 3"],
