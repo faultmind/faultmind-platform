@@ -109,13 +109,12 @@ OUTPUT SCHEMA (JSON only):
 return NextResponse.json({
   success: true,
   data: {
-    query: faultQuery,
     direction: parsedContent.direction || "ltr",
-    findingsTitle: parsedContent.findingsTitle,
-    rootCausesTitle: parsedContent.rootCausesTitle,
-    actionStepsTitle: parsedContent.actionStepsTitle,
-    probableRootCauses: parsedContent.probableRootCauses || [],
-    recommendedActionSteps: parsedContent.recommendedActionSteps || [],
+    mainTitle: parsedContent.mainTitle,
+    sectionOneTitle: parsedContent.sectionOneTitle,
+    sectionTwoTitle: parsedContent.sectionTwoTitle,
+    sectionOneItems: parsedContent.sectionOneItems || [],
+    sectionTwoItems: parsedContent.sectionTwoItems || [],
   },
 });
     
