@@ -14,7 +14,7 @@
     "processing": "Processing...",
     "connectedAs": "Connected as:",
     "signOut": "Sign Out",
-    "accountExists": "An account with this email already exists. Please switch to Sign In.",
+    "accountExists": "An account with this email already exists. Please enter your password to sign in.",
     "checkEmail": "Account created! Check your email to confirm registration.",
     "loginSuccess": "Logged in successfully."
   },
