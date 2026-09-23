@@ -29,21 +29,23 @@ export default function Page() {
       });
     }
 
-    const checkSubscription = async (userId) => {
-      const { data, error } = await supabase
-        .from("subscriptions")
-        .select("status")
-        .eq("user_id", userId)
-        .maybeSingle(); 
-        
-      if (error) console.error("Supabase Error:", error.message);
-        
-      if (data && data.status === "active") {
-        setIsSubscribed(true);
-      } else {
-        setIsSubscribed(false);
-      }
-    };
+   const checkSubscription = async (userId) => {
+  console.log("Checking access for engineer ID:", userId);
+  
+  const { data, error } = await supabase
+    .from("subscriptions")
+    .select("*") // Select all columns temporarily to see the exact data shape
+    .eq("user_id", userId)
+    .maybeSingle(); 
+    
+  console.log("Supabase Auth Response:", { data, error });
+    
+  if (data && data.status === "active") {
+    setIsSubscribed(true);
+  } else {
+    setIsSubscribed(false);
+  }
+};
 
     // Check active session
     supabase.auth.getSession().then(({ data: { session } }) => {
