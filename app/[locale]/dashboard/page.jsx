@@ -932,10 +932,10 @@ export default function DashboardPage() {
                         }}
                         title={doc.file_name}
                       >
-                        📄 {doc.file_name}[cite: 2]
+                        📄 {doc.file_name}
                       </p>
                       <span style={{ fontSize: "0.75rem", color: "#64748B" }}>
-                        {formatBytes(doc.file_size_bytes)}[cite: 2]
+                        {formatBytes(doc.file_size_bytes)}
                       </span>
                     </div>
 
