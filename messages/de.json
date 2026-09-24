@@ -43,6 +43,13 @@
     "uploading": "Datei wird hochgeladen...",
     "recentHistory": "Diagnose-Verlauf",
     "noHistory": "Noch keine Diagnosen gespeichert.",
-    "filesAttached": "Angehängte Dokumente:"
+    "filesAttached": "Angehängte Dokumente:",
+    "manageFiles": "Dateien verwalten",
+    "close": "Schließen",
+    "machineFilesTitle": "Maschinendokumentation",
+    "noFilesAttached": "Keine Dokumente für diese Maschine hochgeladen.",
+    "delete": "Löschen",
+    "deleting": "Wird gelöscht...",
+    "confirmDelete": "Möchten Sie diese Datei wirklich löschen?"
   }
 }
