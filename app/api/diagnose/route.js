@@ -86,12 +86,17 @@ export async function POST(request) {
         machineContextText += `Target Equipment: ${machine.name}\nController/Model: ${machine.brand_model || "Not specified"}\n`;
       }
 
-      // Fetch all attached documents for this machine
-      const { data: docs } = await supabaseAdmin
+// Fetch documents for this machine (explicitly check user_id too)
+      const { data: docs, error: dErr } = await supabaseAdmin
         .from("machine_documents")
         .select("file_name, file_path, mime_type, file_size_bytes")
         .eq("machine_id", machineId)
+        .eq("user_id", user.id)
         .order("created_at", { ascending: true });
+
+      if (dErr) {
+        console.error("--> Error querying machine_documents:", dErr.message);
+      }
 
       console.log(`--> Found ${docs?.length || 0} documents in DB for machine: ${machineId}`);
 
