@@ -1123,8 +1123,6 @@ export default function DashboardPage() {
         machineName={machines.find((m) => m.id === selectedMachineId)?.name}
       />
     </div>
-  );
-}
-    </div>
+  </div>
   );
 }
