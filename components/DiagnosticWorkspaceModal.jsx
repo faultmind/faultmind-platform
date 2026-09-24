@@ -14,7 +14,8 @@ export default function DiagnosticWorkspaceModal({
   const [inputText, setInputText] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  
+  const [initError, setInitError] = useState(null);
+
   // Mobile responsive helpers
   const [isMobile, setIsMobile] = useState(false);
   const [activeTab, setActiveTab] = useState("chat"); // 'chat' | 'state'
@@ -41,58 +42,88 @@ export default function DiagnosticWorkspaceModal({
   useEffect(() => {
     if (!isOpen || !machineId) return;
 
+    let isMounted = true;
+
     async function initSession() {
       setLoading(true);
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      setInitError(null);
 
-      if (!user) return;
+      try {
+        const {
+          data: { user },
+          error: userErr,
+        } = await supabase.auth.getUser();
 
-      let { data: existingSession } = await supabase
-        .from("diagnostic_sessions")
-        .select("*")
-        .eq("machine_id", machineId)
-        .eq("user_id", user.id)
-        .eq("status", "active")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        if (userErr || !user) {
+          throw new Error("You must be logged in to access the workspace.");
+        }
 
-      if (!existingSession) {
-        const { data: newSession } = await supabase
+        // Check for existing active session
+        let { data: existingSession, error: fetchErr } = await supabase
           .from("diagnostic_sessions")
-          .insert({
-            machine_id: machineId,
-            user_id: user.id,
-            title: `Investigation: ${machineName || "Line Machine"}`,
-            active_hypothesis: "Awaiting initial fault symptoms...",
-          })
-          .select()
-          .single();
-
-        existingSession = newSession;
-      }
-
-      setSession(existingSession);
-
-      if (existingSession?.id) {
-        const { data: history } = await supabase
-          .from("diagnostic_events")
           .select("*")
-          .eq("session_id", existingSession.id)
-          .order("created_at", { ascending: true });
+          .eq("machine_id", machineId)
+          .eq("user_id", user.id)
+          .eq("status", "active")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-        setEvents(history || []);
+        if (fetchErr) {
+          console.error("Session lookup error:", fetchErr.message);
+        }
+
+        if (!existingSession) {
+          // Create new session
+          const { data: newSession, error: insertErr } = await supabase
+            .from("diagnostic_sessions")
+            .insert({
+              machine_id: machineId,
+              user_id: user.id,
+              title: `Investigation: ${machineName || "Line Machine"}`,
+              active_hypothesis: "Awaiting initial fault symptoms...",
+            })
+            .select()
+            .single();
+
+          if (insertErr) {
+            throw new Error(`Database error: ${insertErr.message}`);
+          }
+          existingSession = newSession;
+        }
+
+        if (!isMounted) return;
+        setSession(existingSession);
+
+        if (existingSession?.id) {
+          const { data: history, error: historyErr } = await supabase
+            .from("diagnostic_events")
+            .select("*")
+            .eq("session_id", existingSession.id)
+            .order("created_at", { ascending: true });
+
+          if (historyErr) {
+            console.error("Event history error:", historyErr.message);
+          } else if (isMounted) {
+            setEvents(history || []);
+          }
+        }
+      } catch (err) {
+        console.error("Diagnostic Workspace Init Failed:", err.message);
+        if (isMounted) setInitError(err.message);
+      } finally {
+        if (isMounted) setLoading(false);
       }
-
-      setLoading(false);
     }
 
     initSession();
+
+    return () => {
+      isMounted = false;
+    };
   }, [isOpen, machineId, machineName]);
 
-  // 2. Realtime subscription
+  // 2. Realtime WebSocket subscription
   useEffect(() => {
     if (!session?.id) return;
 
@@ -135,7 +166,13 @@ export default function DiagnosticWorkspaceModal({
   // 3. Send message turn
   const handleSend = async (customText = null, eventType = "message") => {
     const textToSend = customText || inputText;
-    if (!textToSend.trim() || !session?.id || submitting) return;
+
+    if (!session?.id) {
+      alert("Session not ready yet. Please wait a moment or check your connection.");
+      return;
+    }
+
+    if (!textToSend.trim() || submitting) return;
 
     setSubmitting(true);
     setInputText("");
@@ -145,6 +182,10 @@ export default function DiagnosticWorkspaceModal({
         data: { session: authSession },
       } = await supabase.auth.getSession();
       const token = authSession?.access_token;
+
+      if (!token) {
+        throw new Error("Authentication token expired. Please refresh.");
+      }
 
       const res = await fetch("/api/session/turn", {
         method: "POST",
@@ -160,9 +201,9 @@ export default function DiagnosticWorkspaceModal({
         }),
       });
 
+      const resData = await res.json();
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to process turn");
+        throw new Error(resData.error || "Failed to process turn");
       }
     } catch (err) {
       console.error("Workspace turn error:", err.message);
@@ -233,8 +274,12 @@ export default function DiagnosticWorkspaceModal({
             >
               🛠️ {machineName || "Diagnostic Workspace"}
             </h2>
-            <span style={{ fontSize: "0.7rem", color: "#38BDF8" }}>
-              Status: {session?.status?.toUpperCase() || "ACTIVE"}
+            <span style={{ fontSize: "0.7rem", color: initError ? "#EF4444" : "#38BDF8" }}>
+              {loading
+                ? "Connecting session..."
+                : initError
+                ? `Connection error: ${initError}`
+                : `Status: ${session?.status?.toUpperCase() || "ACTIVE"}`}
             </span>
           </div>
           <button
@@ -296,7 +341,7 @@ export default function DiagnosticWorkspaceModal({
           </div>
         )}
 
-        {/* Content Area: Split on Desktop / Tabbed on Mobile */}
+        {/* Content Area */}
         <div
           style={{
             display: isMobile ? "flex" : "grid",
@@ -306,7 +351,7 @@ export default function DiagnosticWorkspaceModal({
             flexDirection: "column",
           }}
         >
-          {/* Panel 1: Dialogue (Always visible on desktop; visible if activeTab === 'chat' on mobile) */}
+          {/* Panel 1: Dialogue */}
           {(!isMobile || activeTab === "chat") && (
             <div
               style={{
@@ -395,8 +440,10 @@ export default function DiagnosticWorkspaceModal({
                   type="text"
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
-                  placeholder="Enter observation or multimeter reading..."
-                  disabled={submitting}
+                  placeholder={
+                    !session?.id ? "Connecting session..." : "Enter observation or multimeter reading..."
+                  }
+                  disabled={submitting || !session?.id}
                   style={{
                     flex: 1,
                     backgroundColor: "#0B0F17",
@@ -406,11 +453,12 @@ export default function DiagnosticWorkspaceModal({
                     padding: "0.55rem 0.75rem",
                     fontSize: "0.85rem",
                     outline: "none",
+                    opacity: !session?.id ? 0.6 : 1,
                   }}
                 />
                 <button
                   type="submit"
-                  disabled={!inputText.trim() || submitting}
+                  disabled={!inputText.trim() || submitting || !session?.id}
                   style={{
                     backgroundColor: "#2563EB",
                     color: "#FFFFFF",
@@ -418,18 +466,18 @@ export default function DiagnosticWorkspaceModal({
                     padding: "0.55rem 1rem",
                     borderRadius: "6px",
                     fontWeight: 600,
-                    cursor: !inputText.trim() || submitting ? "not-allowed" : "pointer",
-                    opacity: !inputText.trim() || submitting ? 0.6 : 1,
+                    cursor: !inputText.trim() || submitting || !session?.id ? "not-allowed" : "pointer",
+                    opacity: !inputText.trim() || submitting || !session?.id ? 0.5 : 1,
                     fontSize: "0.85rem",
                   }}
                 >
-                  {submitting ? "..." : "Send"}
+                  {submitting ? "Analyzing..." : "Send"}
                 </button>
               </form>
             </div>
           )}
 
-          {/* Panel 2: Live State Board (Always visible on desktop; visible if activeTab === 'state' on mobile) */}
+          {/* Panel 2: Live State Board */}
           {(!isMobile || activeTab === "state") && (
             <div
               style={{
