@@ -18,12 +18,6 @@ export default function DashboardPage() {
   const locale = useLocale();
   const router = useRouter();
 
-  // compute the total bytes from the documents array
-  const totalBytes = documents.reduce(
-  (acc, doc) => acc + (Number(doc.file_size_bytes) || 0),
-  0
-);
-
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
   const [faultQuery, setFaultQuery] = useState("");
@@ -42,6 +36,12 @@ export default function DashboardPage() {
   const [result, setResult] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [historyLogs, setHistoryLogs] = useState([]);
+
+  // Computed variable (MUST BE BELOW `documents` declaration)
+  const totalBytes = (documents || []).reduce(
+    (acc, doc) => acc + (Number(doc?.file_size_bytes) || 0),
+    0
+  );
 
   useEffect(() => {
     async function initDashboard() {
