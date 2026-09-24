@@ -68,10 +68,64 @@ export async function POST(request) {
     };
     const fallbackLang = fallbackLanguageMap[locale] || "English";
 
-    // 4. Industrial automation system prompt (Natural language matching)
+    // 4. Retrieve Machine Details & Attached Documentation (if machineId provided)
+    let machineContextText = "";
+    const imagePayloads = [];
+
+    if (machineId) {
+      // Fetch machine profile
+      const { data: machine } = await supabaseAdmin
+        .from("machines")
+        .select("name, brand_model")
+        .eq("id", machineId)
+        .single();
+
+      if (machine) {
+        machineContextText += `Target Equipment: ${machine.name}\nController/Model: ${machine.brand_model || "Not specified"}\n`;
+      }
+
+      // Fetch attached documents catalog
+      const { data: docs } = await supabaseAdmin
+        .from("machine_documents")
+        .select("file_name, file_path, mime_type, file_size_bytes")
+        .eq("machine_id", machineId)
+        .order("created_at", { ascending: false });
+
+      if (docs && docs.length > 0) {
+        machineContextText += `Attached Machine Documentation (${docs.length} files available):\n`;
+
+        for (const doc of docs) {
+          const fileSizeKb = Math.round((Number(doc.file_size_bytes) || 0) / 1024);
+          machineContextText += `- ${doc.file_name} (${fileSizeKb} KB)\n`;
+
+          // If the attached document is an image/schematic, provide visual context (up to 4 images)
+          const isImage =
+            doc.mime_type?.startsWith("image/") ||
+            /\.(png|jpe?g|webp)$/i.test(doc.file_name);
+
+          if (isImage && imagePayloads.length < 4) {
+            const { data: signedData } = await supabaseAdmin.storage
+              .from("machine-docs")
+              .createSignedUrl(doc.file_path, 300); // 5-minute temporary link
+
+            if (signedData?.signedUrl) {
+              imagePayloads.push({
+                type: "image_url",
+                image_url: {
+                  url: signedData.signedUrl,
+                  detail: "high",
+                },
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // 5. Industrial automation system prompt (Natural language matching)
     const systemPrompt = `You are an expert senior industrial automation and electrical maintenance engineer.
-Evaluate the user's input:
-- If it is a FAULT or ALARM (troubleshooting scenario), provide root causes and action steps.
+Evaluate the user's input alongside any machine profile details and attached documentation or schematics:
+- If it is a FAULT or ALARM (troubleshooting scenario), provide root causes and action steps referring directly to the machine model and schematics when applicable.
 - If it is a GENERAL QUESTION, PROCEDURE, or TOOLING QUERY (e.g., "how to test...", "what device to use..."), provide direct recommendations/key points under section 1, and procedural steps/instructions under section 2.
 
 CRITICAL INSTRUCTIONS:
@@ -92,13 +146,24 @@ OUTPUT SCHEMA (JSON only):
   "sectionTwoItems": ["Step 1", "Step 2"]
 }`;
 
-    // 5. Call OpenAI API
+    // 6. Build User Message Content (Supports Multimodal Images)
+    let promptText = `Fault description: ${faultQuery}`;
+    if (machineContextText) {
+      promptText += `\n\n--- MACHINE SPECIFICATION & ATTACHED DOCUMENTS ---\n${machineContextText}`;
+    }
+
+    let userContent = [{ type: "text", text: promptText }];
+    if (imagePayloads.length > 0) {
+      userContent = [...userContent, ...imagePayloads];
+    }
+
+    // 7. Call OpenAI API
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: `Fault description: ${faultQuery}` },
+        { role: "user", content: userContent },
       ],
       temperature: 0.2,
     });
@@ -114,7 +179,7 @@ OUTPUT SCHEMA (JSON only):
       sectionTwoItems: parsedContent.sectionTwoItems || [],
     };
 
-// 6. Log diagnostic record to Supabase
+    // 8. Log diagnostic record to Supabase
     const { data: insertedLog, error: logError } = await supabaseAdmin
       .from("diagnostic_logs")
       .insert({
