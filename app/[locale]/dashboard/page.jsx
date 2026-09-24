@@ -534,7 +534,7 @@ export default function DashboardPage() {
             </form>
           )}
 
-          {/* Machine Document Attachments */}
+          {/* Machine Document Attachments Bar */}
           {selectedMachineId && (
             <div
               style={{
@@ -543,63 +543,61 @@ export default function DashboardPage() {
                 borderRadius: "8px",
                 padding: "1rem 1.5rem",
                 marginBottom: "1.5rem",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "1rem",
               }}
             >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "0.75rem",
-                }}
-              >
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
                 <span style={{ fontSize: "0.85rem", color: "#94A3B8" }}>
-  {t("filesAttached") || "Attached Documents:"} {documents.length} ({formatBytes(totalBytes)})
-</span>
-                <label
-                  style={{
-                    backgroundColor: "#1E293B",
-                    color: "#38BDF8",
-                    padding: "0.35rem 0.75rem",
-                    borderRadius: "4px",
-                    cursor: uploading ? "not-allowed" : "pointer",
-                    fontSize: "0.8rem",
-                    border: "1px solid #334155",
-                  }}
-                >
-                  {uploading
-                    ? t("uploading") || "Uploading..."
-                    : t("uploadDoc") || "Attach Manual / Schematic"}
-                  <input
-  type="file"
-  multiple
-  disabled={uploading}
-  onChange={handleFileUpload}
-  accept=".pdf,.png,.jpg,.jpeg,.txt"
-  style={{ display: "none" }}
-/>
-                </label>
+                  {t("filesAttached") || "Attached Documents:"} {documents.length} ({formatBytes(totalBytes)})[cite: 2]
+                </span>
+
+                {documents.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowManageModal(true)}
+                    style={{
+                      backgroundColor: "transparent",
+                      border: "none",
+                      color: "#38BDF8",
+                      fontSize: "0.85rem",
+                      cursor: "pointer",
+                      padding: "0.2rem 0.5rem",
+                      textDecoration: "underline",
+                    }}
+                  >
+                    {t("manageFiles") || "Manage Files"}
+                  </button>
+                )}
               </div>
 
-              {documents.length > 0 && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-                  {documents.map((doc) => (
-                    <span
-                      key={doc.id}
-                      style={{
-                        backgroundColor: "#0B0F17",
-                        border: "1px solid #1E293B",
-                        padding: "0.25rem 0.6rem",
-                        borderRadius: "4px",
-                        fontSize: "0.8rem",
-                        color: "#CBD5E1",
-                      }}
-                    >
-                      📄 {doc.file_name} ({(doc.file_size_bytes / 1024).toFixed(0)} KB)
-                    </span>
-                  ))}
-                </div>
-              )}
+              <label
+                style={{
+                  backgroundColor: "#1E293B",
+                  color: "#38BDF8",
+                  padding: "0.4rem 0.85rem",
+                  borderRadius: "6px",
+                  cursor: uploading ? "not-allowed" : "pointer",
+                  fontSize: "0.825rem",
+                  border: "1px solid #334155",
+                  fontWeight: 500,
+                }}
+              >
+                {uploading
+                  ? t("uploading") || "Uploading..."
+                  : t("uploadDoc") || "Attach Manual / Schematic"}
+                <input
+                  type="file"
+                  multiple
+                  disabled={uploading}
+                  onChange={handleFileUpload}
+                  accept=".pdf,.png,.jpg,.jpeg,.txt"
+                  style={{ display: "none" }}
+                />
+              </label>
             </div>
           )}
 
