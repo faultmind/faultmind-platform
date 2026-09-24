@@ -114,24 +114,28 @@ OUTPUT SCHEMA (JSON only):
       sectionTwoItems: parsedContent.sectionTwoItems || [],
     };
 
-    // 6. Log diagnostic record to Supabase
-    const { error: logError } = await supabaseAdmin
+// 6. Log diagnostic record to Supabase
+    const { data: insertedLog, error: logError } = await supabaseAdmin
       .from("diagnostic_logs")
       .insert({
         user_id: user.id,
         machine_id: machineId || null,
         query_text: faultQuery,
-        locale: locale,
+        locale: locale || "en",
         direction: diagnosticPayload.direction,
-        main_title: diagnosticPayload.mainTitle,
-        section_one_title: diagnosticPayload.sectionOneTitle,
-        section_two_title: diagnosticPayload.sectionTwoTitle,
-        section_one_items: diagnosticPayload.sectionOneItems,
-        section_two_items: diagnosticPayload.sectionTwoItems,
-      });
+        main_title: diagnosticPayload.mainTitle || "Diagnostic Findings",
+        section_one_title: diagnosticPayload.sectionOneTitle || "Findings",
+        section_two_title: diagnosticPayload.sectionTwoTitle || "Recommendations",
+        section_one_items: diagnosticPayload.sectionOneItems || [],
+        section_two_items: diagnosticPayload.sectionTwoItems || [],
+      })
+      .select()
+      .single();
 
     if (logError) {
-      console.error("Warning: Failed to save diagnostic log:", logError.message);
+      console.error("DIAGNOSTIC LOG INSERT FAILED:", logError);
+    } else {
+      console.log("DIAGNOSTIC LOG SAVED SUCCESSFULLY:", insertedLog?.id);
     }
 
     return NextResponse.json({
