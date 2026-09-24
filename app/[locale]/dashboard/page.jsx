@@ -139,13 +139,14 @@ export default function DashboardPage() {
     setHistoryLogs(data || []);
   }
 
-  // Fetch documents whenever the selected machine changes
+// Fetch documents and listen for live Realtime updates
   useEffect(() => {
     if (!selectedMachineId) {
       setDocuments([]);
       return;
     }
 
+    // 1. Initial fetch of documents for the selected machine
     async function loadDocs() {
       const { data } = await supabase
         .from("machine_documents")
@@ -156,6 +157,60 @@ export default function DashboardPage() {
     }
 
     loadDocs();
+
+    // 2. Realtime WebSocket subscription for instant status synchronization
+    const channel = supabase
+      .channel(`machine_docs_${selectedMachineId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "machine_documents",
+          filter: `machine_id=eq.${selectedMachineId}`,
+        },
+        (payload) => {
+          // Flip status (e.g. pending -> processing -> completed) live
+          setDocuments((prev) =>
+            prev.map((doc) =>
+              doc.id === payload.new.id ? { ...doc, ...payload.new } : doc
+            )
+          );
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "machine_documents",
+          filter: `machine_id=eq.${selectedMachineId}`,
+        },
+        (payload) => {
+          setDocuments((prev) => {
+            if (prev.some((doc) => doc.id === payload.new.id)) return prev;
+            return [payload.new, ...prev];
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "machine_documents",
+          filter: `machine_id=eq.${selectedMachineId}`,
+        },
+        (payload) => {
+          setDocuments((prev) => prev.filter((doc) => doc.id !== payload.old.id));
+        }
+      )
+      .subscribe();
+
+    // 3. Clean teardown when switching machines or unmounting
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [selectedMachineId]);
 
   const handleSignOut = async () => {
