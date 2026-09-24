@@ -37,6 +37,46 @@ export default function DashboardPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [historyLogs, setHistoryLogs] = useState([]);
 
+  const [showManageModal, setShowManageModal] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+
+  // Delete a document from both Storage and Database
+  const handleDeleteFile = async (doc) => {
+    if (!window.confirm(t("confirmDelete") || "Are you sure you want to delete this file?")) {
+      return;
+    }
+
+    setDeletingId(doc.id);
+    setErrorMsg("");
+
+    try {
+      // 1. Remove binary file from Supabase Storage
+      const { error: storageError } = await supabase.storage
+        .from("machine-docs")
+        .remove([doc.file_path]);
+
+      if (storageError) {
+        console.warn("Storage deletion warning:", storageError.message);
+      }
+
+      // 2. Delete row from machine_documents table
+      const { error: dbError } = await supabase
+        .from("machine_documents")
+        .delete()
+        .eq("id", doc.id);
+
+      if (dbError) throw dbError;
+
+      // 3. Update local state
+      setDocuments((prev) => prev.filter((d) => d.id !== doc.id));
+    } catch (err) {
+      console.error("Delete Error:", err);
+      alert(err.message || "Failed to delete file");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   // Computed variable (MUST BE BELOW `documents` declaration)
   const totalBytes = (documents || []).reduce(
     (acc, doc) => acc + (Number(doc?.file_size_bytes) || 0),
