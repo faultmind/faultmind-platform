@@ -546,6 +546,26 @@ export default function DashboardPage() {
             >
               {t("addMachineBtn") || "+ Add Machine"}
             </button>
+
+            {selectedMachineId && (
+  <button
+    type="button"
+    onClick={() => setShowWorkspace(true)}
+    style={{
+      backgroundColor: "#065F46",
+      color: "#A7F3D0",
+      border: "1px solid #059669",
+      padding: "0.5rem 1rem",
+      borderRadius: "6px",
+      cursor: "pointer",
+      fontSize: "0.85rem",
+      fontWeight: 600,
+      marginTop: "1.2rem",
+    }}
+  >
+    ⚡ Launch Diagnostic Workspace
+  </button>
+)}
           </div>
 
           {/* Add Machine Inline Form */}
