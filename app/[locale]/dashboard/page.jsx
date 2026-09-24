@@ -506,12 +506,13 @@ export default function DashboardPage() {
                     ? t("uploading") || "Uploading..."
                     : t("uploadDoc") || "Attach Manual / Schematic"}
                   <input
-                    type="file"
-                    disabled={uploading}
-                    onChange={handleFileUpload}
-                    accept=".pdf,.png,.jpg,.jpeg,.txt"
-                    style={{ display: "none" }}
-                  />
+  type="file"
+  multiple
+  disabled={uploading}
+  onChange={handleFileUpload}
+  accept=".pdf,.png,.jpg,.jpeg,.txt"
+  style={{ display: "none" }}
+/>
                 </label>
               </div>
 
