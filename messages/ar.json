@@ -43,6 +43,13 @@
     "uploading": "جاري رفع الملف...",
     "recentHistory": "سجل التشخيصات السابقة",
     "noHistory": "لا توجد تشخيصات مسجلة حتى الآن.",
-    "filesAttached": "المستندات المرفقة:"
+    "filesAttached": "المستندات المرفقة:",
+    "manageFiles": "إدارة الملفات",
+    "close": "إغلاق",
+    "machineFilesTitle": "وثائق الماكينة",
+    "noFilesAttached": "لا توجد مستندات مرفوعة لهذه الماكينة.",
+    "delete": "حذف",
+    "deleting": "جاري الحذف...",
+    "confirmDelete": "هل أنت متأكد من حذف هذا الملف؟"
   }
 }
