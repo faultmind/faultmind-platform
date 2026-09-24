@@ -1115,6 +1115,16 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+      {/* Diagnostic Workspace Modal */}
+      <DiagnosticWorkspaceModal
+        isOpen={showWorkspace}
+        onClose={() => setShowWorkspace(false)}
+        machineId={selectedMachineId}
+        machineName={machines.find((m) => m.id === selectedMachineId)?.name}
+      />
+    </div>
+  );
+}
     </div>
   );
 }
