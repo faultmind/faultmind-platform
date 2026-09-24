@@ -163,7 +163,7 @@ export default function DashboardPage() {
     router.replace(`/${locale}`);
   };
 
-// Add new machine record with explicit error handling
+  // Add new machine record with explicit error handling
   const handleCreateMachine = async (e) => {
     e.preventDefault();
     if (!newMachineName.trim()) return;
@@ -171,13 +171,11 @@ export default function DashboardPage() {
     setErrorMsg("");
 
     try {
-      // 1. Ensure user is available
       const activeUser = user || (await supabase.auth.getUser()).data?.user;
       if (!activeUser) {
         throw new Error("User session expired. Please sign in again.");
       }
 
-      // 2. Insert new machine record
       const { data, error } = await supabase
         .from("machines")
         .insert([
@@ -207,7 +205,7 @@ export default function DashboardPage() {
     }
   };
 
-// Upload multiple files directly to Supabase Storage & record in machine_documents
+  // Upload multiple files directly to Supabase Storage, record in DB, & trigger background OCR ingestion
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0 || !selectedMachineId) return;
@@ -218,6 +216,11 @@ export default function DashboardPage() {
     try {
       const activeUser = user || (await supabase.auth.getUser()).data?.user;
       if (!activeUser) throw new Error("Active session not found. Please log in.");
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
 
       const uploadedDocs = [];
 
@@ -242,6 +245,7 @@ export default function DashboardPage() {
             file_path: filePath,
             file_size_bytes: file.size,
             mime_type: file.type || "application/octet-stream",
+            ocr_status: "pending",
           })
           .select()
           .single();
@@ -249,6 +253,29 @@ export default function DashboardPage() {
         if (dbError) throw dbError;
 
         uploadedDocs.push(docData);
+
+        // 3. Asynchronously trigger background ingestion worker if token available
+        if (token && docData?.id) {
+          fetch("/api/ingest", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ documentId: docData.id }),
+          })
+            .then(async (res) => {
+              if (res.ok) {
+                // Update local document status to completed
+                setDocuments((currentDocs) =>
+                  currentDocs.map((d) =>
+                    d.id === docData.id ? { ...d, ocr_status: "completed" } : d
+                  )
+                );
+              }
+            })
+            .catch((e) => console.warn("Background ingestion failed to trigger:", e.message));
+        }
       }
 
       // Update state with newly attached files
@@ -552,8 +579,8 @@ export default function DashboardPage() {
             >
               <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
                 <span style={{ fontSize: "0.85rem", color: "#94A3B8" }}>
-  {t("filesAttached") || "Attached Documents:"} {documents.length} ({formatBytes(totalBytes)})
-</span>
+                  {t("filesAttached") || "Attached Documents:"} {documents.length} ({formatBytes(totalBytes)})
+                </span>
 
                 {documents.length > 0 && (
                   <button
@@ -587,7 +614,7 @@ export default function DashboardPage() {
                 }}
               >
                 {uploading
-                  ? t("uploading") || "Uploading..."
+                  ? t("uploading") || "Uploading & Indexing..."
                   : t("uploadDoc") || "Attach Manual / Schematic"}
                 <input
                   type="file"
@@ -823,6 +850,7 @@ export default function DashboardPage() {
           )}
         </aside>
       </div>
+
       {/* Responsive Manage Files Modal */}
       {showManageModal && (
         <div
@@ -848,7 +876,7 @@ export default function DashboardPage() {
               border: "1px solid #1E293B",
               borderRadius: "10px",
               width: "100%",
-              maxWidth: "600px",
+              maxWidth: "640px",
               maxHeight: "85vh",
               display: "flex",
               flexDirection: "column",
@@ -906,58 +934,79 @@ export default function DashboardPage() {
                   {t("noFilesAttached") || "No documents uploaded for this machine."}
                 </p>
               ) : (
-                documents.map((doc) => (
-                  <div
-                    key={doc.id}
-                    style={{
-                      backgroundColor: "#0B0F17",
-                      border: "1px solid #1E293B",
-                      borderRadius: "6px",
-                      padding: "0.75rem 1rem",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: "0.75rem",
-                    }}
-                  >
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <p
-                        style={{
-                          margin: 0,
-                          fontSize: "0.85rem",
-                          color: "#E2E8F0",
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                        title={doc.file_name}
-                      >
-                        📄 {doc.file_name}
-                      </p>
-                      <span style={{ fontSize: "0.75rem", color: "#64748B" }}>
-                        {formatBytes(doc.file_size_bytes)}
-                      </span>
-                    </div>
+                documents.map((doc) => {
+                  const status = doc.ocr_status || "pending";
+                  const isCompleted = status === "completed";
+                  const isProcessing = status === "processing";
 
-                    <button
-                      onClick={() => handleDeleteFile(doc)}
-                      disabled={deletingId === doc.id}
+                  return (
+                    <div
+                      key={doc.id}
                       style={{
-                        backgroundColor: "#7F1D1D",
-                        color: "#FECACA",
-                        border: "1px solid #991B1B",
-                        padding: "0.3rem 0.7rem",
-                        borderRadius: "4px",
-                        fontSize: "0.75rem",
-                        cursor: deletingId === doc.id ? "not-allowed" : "pointer",
-                        opacity: deletingId === doc.id ? 0.6 : 1,
-                        flexShrink: 0,
+                        backgroundColor: "#0B0F17",
+                        border: "1px solid #1E293B",
+                        borderRadius: "6px",
+                        padding: "0.75rem 1rem",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "0.75rem",
                       }}
                     >
-                      {deletingId === doc.id ? (t("deleting") || "Deleting...") : (t("delete") || "Delete")}
-                    </button>
-                  </div>
-                ))
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          <p
+                            style={{
+                              margin: 0,
+                              fontSize: "0.85rem",
+                              color: "#E2E8F0",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                            title={doc.file_name}
+                          >
+                            📄 {doc.file_name}
+                          </p>
+                          <span
+                            style={{
+                              fontSize: "0.65rem",
+                              padding: "0.15rem 0.4rem",
+                              borderRadius: "4px",
+                              backgroundColor: isCompleted ? "#064E3B" : isProcessing ? "#78350F" : "#1E293B",
+                              color: isCompleted ? "#6EE7B7" : isProcessing ? "#FCD34D" : "#94A3B8",
+                              fontWeight: 500,
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            {isCompleted ? "indexed" : isProcessing ? "indexing..." : "pending"}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: "0.75rem", color: "#64748B" }}>
+                          {formatBytes(doc.file_size_bytes)}
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={() => handleDeleteFile(doc)}
+                        disabled={deletingId === doc.id}
+                        style={{
+                          backgroundColor: "#7F1D1D",
+                          color: "#FECACA",
+                          border: "1px solid #991B1B",
+                          padding: "0.3rem 0.7rem",
+                          borderRadius: "4px",
+                          fontSize: "0.75rem",
+                          cursor: deletingId === doc.id ? "not-allowed" : "pointer",
+                          opacity: deletingId === doc.id ? 0.6 : 1,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {deletingId === doc.id ? (t("deleting") || "Deleting...") : (t("delete") || "Delete")}
+                      </button>
+                    </div>
+                  );
+                })
               )}
             </div>
 
