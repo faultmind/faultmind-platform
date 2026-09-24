@@ -2,13 +2,11 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 
-// Supabase Admin for verifying Auth, Subscription & saving logs
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// OpenAI Client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -50,7 +48,7 @@ export async function POST(request) {
       );
     }
 
-    // 2. Parse request payload (including optional machineId)
+    // 2. Parse request payload
     const { faultQuery, locale = "en", machineId = null } = await request.json();
 
     if (!faultQuery || faultQuery.trim().length === 0) {
@@ -60,7 +58,6 @@ export async function POST(request) {
       );
     }
 
-    // 3. Fallback locale name if the query has no linguistic text (e.g. only fault codes)
     const fallbackLanguageMap = {
       en: "English",
       ar: "Arabic",
@@ -68,14 +65,11 @@ export async function POST(request) {
     };
     const fallbackLang = fallbackLanguageMap[locale] || "English";
 
-// 4. Retrieve Machine Details & Attached Documentation
+    // 3. Retrieve Machine Details & Attached Documentation
     let machineContextText = "";
     const imagePayloads = [];
 
-    console.log("--> API Received machineId:", machineId);
-
     if (machineId) {
-      // Fetch machine profile
       const { data: machine } = await supabaseAdmin
         .from("machines")
         .select("name, brand_model")
@@ -86,7 +80,7 @@ export async function POST(request) {
         machineContextText += `Target Equipment: ${machine.name}\nController/Model: ${machine.brand_model || "Not specified"}\n`;
       }
 
-// Fetch documents for this machine (explicitly check user_id too)
+      // Fetch attached documents (bypassing RLS with user_id)
       const { data: docs, error: dErr } = await supabaseAdmin
         .from("machine_documents")
         .select("file_name, file_path, mime_type, file_size_bytes")
@@ -94,31 +88,25 @@ export async function POST(request) {
         .eq("user_id", user.id)
         .order("created_at", { ascending: true });
 
-      if (dErr) {
-        console.error("--> Error querying machine_documents:", dErr.message);
-      }
-
-      console.log(`--> Found ${docs?.length || 0} documents in DB for machine: ${machineId}`);
-
       if (docs && docs.length > 0) {
+        machineContextText += `Attached Machine Documentation (${docs.length} files available):\n`;
+
         for (const doc of docs) {
+          const fileSizeKb = Math.round((Number(doc.file_size_bytes) || 0) / 1024);
+          machineContextText += `- ${doc.file_name} (${fileSizeKb} KB)\n`;
+
           const isImage =
             doc.mime_type?.startsWith("image/") ||
             /\.(png|jpe?g|webp|bmp)$/i.test(doc.file_name);
 
-          // Allow up to 20 images so the ladder logic screenshot is included
+          // Allow up to 20 images in the reasoning context
           if (isImage && imagePayloads.length < 20) {
             try {
               const { data: fileBlob, error: dlError } = await supabaseAdmin.storage
                 .from("machine-docs")
                 .download(doc.file_path);
 
-              if (dlError) {
-                console.error(`--> Storage download error on ${doc.file_name}:`, dlError.message);
-                continue;
-              }
-
-              if (fileBlob) {
+              if (!dlError && fileBlob) {
                 const arrayBuffer = await fileBlob.arrayBuffer();
                 const base64Data = Buffer.from(arrayBuffer).toString("base64");
                 const mime =
@@ -135,44 +123,49 @@ export async function POST(request) {
                     detail: "high",
                   },
                 });
-                console.log(`--> Successfully attached image: ${doc.file_name}`);
               }
             } catch (err) {
-              console.error(`--> Exception loading ${doc.file_name}:`, err.message);
+              console.warn(`Storage download failed for ${doc.file_name}:`, err.message);
             }
           }
         }
       }
     }
-    console.log(`--> Total images delivered to OpenAI: ${imagePayloads.length}`);
-    
-// 5. Industrial automation system prompt
-    const systemPrompt = `You are an expert senior industrial automation and electrical maintenance engineer.
-You analyze machine queries using attached schematics, electrical diagrams, and PLC ladder logic screenshots.
 
-CRITICAL READING GUIDELINES FOR SCHEMATICS & LADDER LOGIC:
-- Pay strict attention to "Input" (I) vs "Output" (Q) prefixes and address numbers. Do NOT confuse CPU_InputX with CPU_OutputX.
-- When an attached image contains a Symbol / Address / Comment table, cross-reference the EXACT symbol queried by the user, and report its absolute address (e.g., I1.5) and comment text verbatim.
-- Explain the logic function: specify whether it is normally open or normally closed, what rung/network it appears in, and what actuators, coils, or timers it interlocks or controls.
+    // 4. Upgraded Engineering System Prompt
+    const systemPrompt = `You are a Principal Industrial Automation and PLC Systems Diagnostic Engineer.
+You have native expertise in industrial field engineering, electrical schematics, and PLC programming (Siemens TIA Portal/STEP 7, Delta, Allen-Bradley, Beckhoff, Omron).
 
-RESPONSE GUIDELINES:
-- Adapt section titles naturally (e.g., for specific PLC tag inquiries: "Symbol & Address Details" and "Ladder Logic Context & Function").
-- Respond in the EXACT same language as the user's input.
+When reviewing uploaded schematics, wiring diagrams, and ladder logic screenshots:
+1. SPATIAL ALIGNMENT & TABLE EXTRACTION:
+   - Tables with columns like "Symbol | Address | Comment" must be aligned horizontally with extreme care.
+   - Do NOT mix adjacent rows. Ensure the Comment matches the EXACT row of the requested Symbol.
+   - Distinctly differentiate CPU_Input vs CPU_Output and physical addresses (I vs Q, e.g. I1.5 vs Q1.5).
+2. LADDER LOGIC CIRCUIT TRACING:
+   - Identify the network number (e.g. Network 42).
+   - Trace the branch: identify if contacts are normally open (NO) or normally closed (NC / negated).
+   - Identify what output coil, memory flag, or timer it enables, seals-in, or interlocks.
+3. SCRATCHPAD REASONING:
+   - In your JSON response, first fill the "visualScratchpad" key with the exact raw row you extracted (Symbol, Address, Comment verbatim) before formulating the final explanation.
+
+LANGUAGE & FORMAT:
+- Respond in the exact language of the query.
 - Detect "direction" as "rtl" for Arabic or "ltr" for English/German.
-- If input has no linguistic text (just codes), fallback to ${fallbackLang}.
+- If input has no linguistic text (pure fault codes), fallback to ${fallbackLang}.
 
-OUTPUT SCHEMA (JSON only):
+OUTPUT SCHEMA (Strict JSON only):
 {
   "direction": "rtl" | "ltr",
-  "mainTitle": "Localized Main Header",
-  "sectionOneTitle": "Context-accurate title for list 1",
-  "sectionTwoTitle": "Context-accurate title for list 2",
+  "visualScratchpad": "Verbatim row: [Symbol] | [Address] | [Comment], Network number, and contact type",
+  "mainTitle": "Localized concise title",
+  "sectionOneTitle": "Contextual title (e.g. Symbol & Signal Specifications)",
+  "sectionTwoTitle": "Contextual title (e.g. Logic Circuit Function & Interlock Actions)",
   "sectionOneItems": ["Point 1", "Point 2"],
-  "sectionTwoItems": ["Step 1", "Step 2"]
+  "sectionTwoItems": ["Action/Function 1", "Action/Function 2"]
 }`;
 
-    // 6. Build User Message Content (Supports Multimodal Images)
-    let promptText = `Fault description: ${faultQuery}`;
+    // 5. Build multimodal payload
+    let promptText = `Query: ${faultQuery}`;
     if (machineContextText) {
       promptText += `\n\n--- MACHINE SPECIFICATION & ATTACHED DOCUMENTS ---\n${machineContextText}`;
     }
@@ -182,15 +175,15 @@ OUTPUT SCHEMA (JSON only):
       userContent = [...userContent, ...imagePayloads];
     }
 
-    // 7. Call OpenAI API
+    // 6. Upgraded to Flagship GPT-4o Model
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userContent },
       ],
-      temperature: 0.2,
+      temperature: 0.1, // Minimal hallucination / strict deterministic reading
     });
 
     const parsedContent = JSON.parse(response.choices[0].message.content);
@@ -204,7 +197,7 @@ OUTPUT SCHEMA (JSON only):
       sectionTwoItems: parsedContent.sectionTwoItems || [],
     };
 
-    // 8. Log diagnostic record to Supabase
+    // 7. Persist to database
     const { data: insertedLog, error: logError } = await supabaseAdmin
       .from("diagnostic_logs")
       .insert({
@@ -224,8 +217,6 @@ OUTPUT SCHEMA (JSON only):
 
     if (logError) {
       console.error("DIAGNOSTIC LOG INSERT FAILED:", logError);
-    } else {
-      console.log("DIAGNOSTIC LOG SAVED SUCCESSFULLY:", insertedLog?.id);
     }
 
     return NextResponse.json({
