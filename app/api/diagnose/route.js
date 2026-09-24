@@ -80,10 +80,10 @@ export async function POST(request) {
         machineContextText += `Target Equipment: ${machine.name}\nController/Model: ${machine.brand_model || "Not specified"}\n`;
       }
 
-      // Fetch attached documents (bypassing RLS with user_id)
+      // Fetch attached documents for this machine
       const { data: docs, error: dErr } = await supabaseAdmin
         .from("machine_documents")
-        .select("file_name, file_path, mime_type, file_size_bytes")
+        .select("id, file_name, file_path, mime_type, file_size_bytes, ocr_status, structured_data, extracted_text")
         .eq("machine_id", machineId)
         .eq("user_id", user.id)
         .order("created_at", { ascending: true });
@@ -91,15 +91,36 @@ export async function POST(request) {
       if (docs && docs.length > 0) {
         machineContextText += `Attached Machine Documentation (${docs.length} files available):\n`;
 
+        let structuredKnowledgeFound = false;
+
         for (const doc of docs) {
           const fileSizeKb = Math.round((Number(doc.file_size_bytes) || 0) / 1024);
-          machineContextText += `- ${doc.file_name} (${fileSizeKb} KB)\n`;
 
+          // A. If pre-indexed structured data exists from ingestion worker, inject directly as text
+          if (doc.structured_data && typeof doc.structured_data === "object" && Object.keys(doc.structured_data).length > 0) {
+            structuredKnowledgeFound = true;
+            const data = doc.structured_data;
+            machineContextText += `\n[Indexed Document: ${doc.file_name} | Network: ${data.network_number || "N/A"}]\n`;
+            if (data.circuit_summary) {
+              machineContextText += `Circuit Summary: ${data.circuit_summary}\n`;
+            }
+            if (Array.isArray(data.tags) && data.tags.length > 0) {
+              machineContextText += `Extracted Symbol Table:\n`;
+              data.tags.forEach((t) => {
+                machineContextText += `  - Symbol: ${t.symbol} | Address: ${t.address} | Comment: "${t.comment}" | Contact State: ${t.state || "N/A"}\n`;
+              });
+            }
+          } else if (doc.extracted_text) {
+            machineContextText += `\n[Text Document: ${doc.file_name}]\n${doc.extracted_text.slice(0, 1500)}\n`;
+          } else {
+            machineContextText += `- ${doc.file_name} (${fileSizeKb} KB)\n`;
+          }
+
+          // B. Visual fallback: If not yet indexed, pass images directly into the vision pipeline
           const isImage =
             doc.mime_type?.startsWith("image/") ||
             /\.(png|jpe?g|webp|bmp)$/i.test(doc.file_name);
 
-          // Allow up to 20 images in the reasoning context
           if (isImage && imagePayloads.length < 20) {
             try {
               const { data: fileBlob, error: dlError } = await supabaseAdmin.storage
@@ -132,20 +153,23 @@ export async function POST(request) {
       }
     }
 
-    // 4. Upgraded Engineering System Prompt
+    // 4. Engineering System Prompt
     const systemPrompt = `You are a Principal Industrial Automation and PLC Systems Diagnostic Engineer.
 You have native expertise in industrial field engineering, electrical schematics, and PLC programming (Siemens TIA Portal/STEP 7, Delta, Allen-Bradley, Beckhoff, Omron).
 
-When reviewing uploaded schematics, wiring diagrams, and ladder logic screenshots:
-1. SPATIAL ALIGNMENT & TABLE EXTRACTION:
+When evaluating user queries:
+1. PRE-INDEXED PLC DATA & SYMBOL TABLES:
+   - When pre-indexed symbol tables or network data are provided in the machine specification, treat them as authoritative ground truth.
+   - Distinctly differentiate CPU_Input vs CPU_Output and physical addresses (I vs Q, e.g. I1.5 vs Q1.5).
+   - Match the exact symbol queried and report its absolute address and comment verbatim.
+2. SPATIAL ALIGNMENT (FOR ATTACHED SCHEMATIC IMAGES):
    - Tables with columns like "Symbol | Address | Comment" must be aligned horizontally with extreme care.
    - Do NOT mix adjacent rows. Ensure the Comment matches the EXACT row of the requested Symbol.
-   - Distinctly differentiate CPU_Input vs CPU_Output and physical addresses (I vs Q, e.g. I1.5 vs Q1.5).
-2. LADDER LOGIC CIRCUIT TRACING:
+3. LADDER LOGIC CIRCUIT TRACING:
    - Identify the network number (e.g. Network 42).
    - Trace the branch: identify if contacts are normally open (NO) or normally closed (NC / negated).
    - Identify what output coil, memory flag, or timer it enables, seals-in, or interlocks.
-3. SCRATCHPAD REASONING:
+4. SCRATCHPAD REASONING:
    - In your JSON response, first fill the "visualScratchpad" key with the exact raw row you extracted (Symbol, Address, Comment verbatim) before formulating the final explanation.
 
 LANGUAGE & FORMAT:
@@ -175,7 +199,7 @@ OUTPUT SCHEMA (Strict JSON only):
       userContent = [...userContent, ...imagePayloads];
     }
 
-    // 6. Upgraded to Flagship GPT-4o Model
+    // 6. Call Flagship GPT-4o Model
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       response_format: { type: "json_object" },
@@ -183,7 +207,7 @@ OUTPUT SCHEMA (Strict JSON only):
         { role: "system", content: systemPrompt },
         { role: "user", content: userContent },
       ],
-      temperature: 0.1, // Minimal hallucination / strict deterministic reading
+      temperature: 0.1,
     });
 
     const parsedContent = JSON.parse(response.choices[0].message.content);
