@@ -5,10 +5,24 @@ import { useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
 import { supabase } from "../../../lib/supabaseClient";
 
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return "0 KB";
+  const k = 1024;
+  const sizes = ["Bytes", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${(bytes / Math.pow(k, i)).toFixed(i === 1 ? 0 : 1)} ${sizes[i]}`;
+}
+
 export default function DashboardPage() {
   const t = useTranslations("Dashboard");
   const locale = useLocale();
   const router = useRouter();
+
+  // compute the total bytes from the documents array
+  const totalBytes = documents.reduce(
+  (acc, doc) => acc + (Number(doc.file_size_bytes) || 0),
+  0
+);
 
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
@@ -153,44 +167,55 @@ export default function DashboardPage() {
     }
   };
 
-  // Upload file directly to Supabase Storage & insert record in machine_documents
+// Upload multiple files directly to Supabase Storage & record in machine_documents
   const handleFileUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file || !selectedMachineId) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0 || !selectedMachineId) return;
 
     setUploading(true);
     setErrorMsg("");
 
     try {
-      const cleanFileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-      const filePath = `${user.id}/${selectedMachineId}/${cleanFileName}`;
+      const activeUser = user || (await supabase.auth.getUser()).data?.user;
+      if (!activeUser) throw new Error("Active session not found. Please log in.");
 
-      // Upload binary to Storage Bucket
-      const { error: uploadError } = await supabase.storage
-        .from("machine-docs")
-        .upload(filePath, file);
+      const uploadedDocs = [];
 
-      if (uploadError) throw uploadError;
+      for (const file of files) {
+        const cleanFileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+        const filePath = `${activeUser.id}/${selectedMachineId}/${cleanFileName}`;
 
-      // Save document metadata in DB
-      const { data: docData, error: dbError } = await supabase
-        .from("machine_documents")
-        .insert({
-          machine_id: selectedMachineId,
-          user_id: user.id,
-          file_name: file.name,
-          file_path: filePath,
-          file_size_bytes: file.size,
-          mime_type: file.type || "application/octet-stream",
-        })
-        .select()
-        .single();
+        // 1. Upload file binary to Storage bucket
+        const { error: uploadError } = await supabase.storage
+          .from("machine-docs")
+          .upload(filePath, file);
 
-      if (dbError) throw dbError;
+        if (uploadError) throw uploadError;
 
-      setDocuments([docData, ...documents]);
+        // 2. Insert record in machine_documents
+        const { data: docData, error: dbError } = await supabase
+          .from("machine_documents")
+          .insert({
+            machine_id: selectedMachineId,
+            user_id: activeUser.id,
+            file_name: file.name,
+            file_path: filePath,
+            file_size_bytes: file.size,
+            mime_type: file.type || "application/octet-stream",
+          })
+          .select()
+          .single();
+
+        if (dbError) throw dbError;
+
+        uploadedDocs.push(docData);
+      }
+
+      // Update state with newly attached files
+      setDocuments((prev) => [...uploadedDocs, ...prev]);
     } catch (err) {
-      setErrorMsg(err.message || "Failed to upload file");
+      console.error("Upload failure:", err);
+      setErrorMsg(err.message || "Failed to upload one or more files");
     } finally {
       setUploading(false);
       e.target.value = "";
