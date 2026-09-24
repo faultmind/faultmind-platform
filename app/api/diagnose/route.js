@@ -68,13 +68,15 @@ export async function POST(request) {
     };
     const fallbackLang = fallbackLanguageMap[locale] || "English";
 
-// 4. Retrieve Machine Details & Attached Documentation (if machineId provided)
+// 4. Retrieve Machine Details & Attached Documentation
     let machineContextText = "";
     const imagePayloads = [];
 
+    console.log("--> API Received machineId:", machineId);
+
     if (machineId) {
       // Fetch machine profile
-      const { data: machine } = await supabaseAdmin
+      const { data: machine, error: mErr } = await supabaseAdmin
         .from("machines")
         .select("name, brand_model")
         .eq("id", machineId)
@@ -84,35 +86,36 @@ export async function POST(request) {
         machineContextText += `Target Equipment: ${machine.name}\nController/Model: ${machine.brand_model || "Not specified"}\n`;
       }
 
-      // Fetch all attached documents for this machine
-      const { data: docs } = await supabaseAdmin
+      // Fetch attached documents for this machine
+      const { data: docs, error: dErr } = await supabaseAdmin
         .from("machine_documents")
         .select("file_name, file_path, mime_type, file_size_bytes")
         .eq("machine_id", machineId)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: true }); // Fetch from earliest to latest
+
+      console.log(`--> Found ${docs?.length || 0} documents in DB for machine ${machineId}`);
 
       if (docs && docs.length > 0) {
-        machineContextText += `Attached Machine Documentation (${docs.length} files available):\n`;
-
         for (const doc of docs) {
-          const fileSizeKb = Math.round((Number(doc.file_size_bytes) || 0) / 1024);
-          machineContextText += `- ${doc.file_name} (${fileSizeKb} KB)\n`;
-
           const isImage =
             doc.mime_type?.startsWith("image/") ||
             /\.(png|jpe?g|webp|bmp)$/i.test(doc.file_name);
 
-          // Stream up to 10 images directly via Base64 so OpenAI receives the exact visual diagrams
-          if (isImage && imagePayloads.length < 10) {
+          // For testing, let's load up to 15 images
+          if (isImage && imagePayloads.length < 15) {
             try {
-              const { data: fileBlob, error: downloadError } = await supabaseAdmin.storage
+              const { data: fileBlob, error: dlError } = await supabaseAdmin.storage
                 .from("machine-docs")
                 .download(doc.file_path);
 
-              if (!downloadError && fileBlob) {
+              if (dlError) {
+                console.error(`--> Storage download error on ${doc.file_name}:`, dlError.message);
+                continue;
+              }
+
+              if (fileBlob) {
                 const arrayBuffer = await fileBlob.arrayBuffer();
-                const buffer = Buffer.from(arrayBuffer);
-                const base64Data = buffer.toString("base64");
+                const base64Data = Buffer.from(arrayBuffer).toString("base64");
                 const mime =
                   doc.mime_type && doc.mime_type.startsWith("image/")
                     ? doc.mime_type
@@ -127,15 +130,16 @@ export async function POST(request) {
                     detail: "high",
                   },
                 });
+                console.log(`--> Attached image to OpenAI payload: ${doc.file_name}`);
               }
-            } catch (dlErr) {
-              console.warn(`Failed to process image ${doc.file_name}:`, dlErr.message);
+            } catch (err) {
+              console.error(`--> Exception loading ${doc.file_name}:`, err.message);
             }
           }
         }
       }
     }
-
+    console.log(`--> Total images sent to OpenAI: ${imagePayloads.length}`);
     // 5. Industrial automation system prompt (Natural language matching)
     const systemPrompt = `You are an expert senior industrial automation and electrical maintenance engineer.
 Evaluate the user's input alongside any machine profile details and attached documentation or schematics:
