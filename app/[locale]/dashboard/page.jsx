@@ -552,8 +552,8 @@ export default function DashboardPage() {
             >
               <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
                 <span style={{ fontSize: "0.85rem", color: "#94A3B8" }}>
-                  {t("filesAttached") || "Attached Documents:"} {documents.length} ({formatBytes(totalBytes)})[cite: 2]
-                </span>
+  {t("filesAttached") || "Attached Documents:"} {documents.length} ({formatBytes(totalBytes)})
+</span>
 
                 {documents.length > 0 && (
                   <button
