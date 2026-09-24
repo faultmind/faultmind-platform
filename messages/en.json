@@ -44,7 +44,14 @@
     "uploading": "Uploading file...",
     "recentHistory": "Diagnostic Log History",
     "noHistory": "No saved diagnostics yet.",
-    "filesAttached": "Attached Documents:"
+    "filesAttached": "Attached Documents:",
+    "manageFiles": "Manage Files",
+    "close": "Close",
+    "machineFilesTitle": "Machine Documentation",
+    "noFilesAttached": "No documents uploaded for this machine.",
+    "delete": "Delete",
+    "deleting": "Deleting...",
+    "confirmDelete": "Are you sure you want to delete this file?"
   }
 }
 
