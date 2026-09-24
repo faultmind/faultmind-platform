@@ -76,7 +76,7 @@ export async function POST(request) {
 
     if (machineId) {
       // Fetch machine profile
-      const { data: machine, error: mErr } = await supabaseAdmin
+      const { data: machine } = await supabaseAdmin
         .from("machines")
         .select("name, brand_model")
         .eq("id", machineId)
@@ -86,14 +86,14 @@ export async function POST(request) {
         machineContextText += `Target Equipment: ${machine.name}\nController/Model: ${machine.brand_model || "Not specified"}\n`;
       }
 
-      // Fetch attached documents for this machine
-      const { data: docs, error: dErr } = await supabaseAdmin
+      // Fetch all attached documents for this machine
+      const { data: docs } = await supabaseAdmin
         .from("machine_documents")
         .select("file_name, file_path, mime_type, file_size_bytes")
         .eq("machine_id", machineId)
-        .order("created_at", { ascending: true }); // Fetch from earliest to latest
+        .order("created_at", { ascending: true });
 
-      console.log(`--> Found ${docs?.length || 0} documents in DB for machine ${machineId}`);
+      console.log(`--> Found ${docs?.length || 0} documents in DB for machine: ${machineId}`);
 
       if (docs && docs.length > 0) {
         for (const doc of docs) {
@@ -101,8 +101,8 @@ export async function POST(request) {
             doc.mime_type?.startsWith("image/") ||
             /\.(png|jpe?g|webp|bmp)$/i.test(doc.file_name);
 
-          // For testing, let's load up to 15 images
-          if (isImage && imagePayloads.length < 15) {
+          // Allow up to 20 images so the ladder logic screenshot is included
+          if (isImage && imagePayloads.length < 20) {
             try {
               const { data: fileBlob, error: dlError } = await supabaseAdmin.storage
                 .from("machine-docs")
@@ -130,7 +130,7 @@ export async function POST(request) {
                     detail: "high",
                   },
                 });
-                console.log(`--> Attached image to OpenAI payload: ${doc.file_name}`);
+                console.log(`--> Successfully attached image: ${doc.file_name}`);
               }
             } catch (err) {
               console.error(`--> Exception loading ${doc.file_name}:`, err.message);
@@ -139,7 +139,8 @@ export async function POST(request) {
         }
       }
     }
-    console.log(`--> Total images sent to OpenAI: ${imagePayloads.length}`);
+    console.log(`--> Total images delivered to OpenAI: ${imagePayloads.length}`);
+    
     // 5. Industrial automation system prompt (Natural language matching)
     const systemPrompt = `You are an expert senior industrial automation and electrical maintenance engineer.
 Evaluate the user's input alongside any machine profile details and attached documentation or schematics:
