@@ -42,21 +42,67 @@ export async function POST(request) {
     // 2. Request payload
     const { sessionId, machineId, userInput, eventType = "message" } = await request.json();
 
-    if (!sessionId || !userInput?.trim()) {
-      return NextResponse.json({ error: "sessionId and userInput are required" }, { status: 400 });
+    if (!userInput?.trim()) {
+      return NextResponse.json({ error: "userInput is required" }, { status: 400 });
     }
 
-    // 3. Load active session state
-    const { data: sessionData, error: sessionErr } = await supabaseAdmin
-      .from("diagnostic_sessions")
-      .select("*")
-      .eq("id", sessionId)
-      .eq("user_id", user.id)
-      .single();
+    // 3. Load or Self-Heal Active Session
+    let sessionData = null;
 
-    if (sessionErr || !sessionData) {
-      return NextResponse.json({ error: "Diagnostic session not found" }, { status: 404 });
+    if (sessionId) {
+      const { data, error } = await supabaseAdmin
+        .from("diagnostic_sessions")
+        .select("*")
+        .eq("id", sessionId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!error && data) {
+        sessionData = data;
+      }
     }
+
+    // If still null, try finding any active session for this machine
+    if (!sessionData && machineId) {
+      const { data: existingActive } = await supabaseAdmin
+        .from("diagnostic_sessions")
+        .select("*")
+        .eq("machine_id", machineId)
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingActive) {
+        sessionData = existingActive;
+      }
+    }
+
+    // If still missing, automatically create a new session
+    if (!sessionData) {
+      const { data: newSession, error: createErr } = await supabaseAdmin
+        .from("diagnostic_sessions")
+        .insert({
+          machine_id: machineId,
+          user_id: user.id,
+          title: "Active Investigation",
+          active_hypothesis: "Initial assessment based on reported symptoms.",
+        })
+        .select()
+        .single();
+
+      if (createErr || !newSession) {
+        return NextResponse.json(
+          { error: `Could not create session: ${createErr?.message || "Database error"}` },
+          { status: 500 }
+        );
+      }
+
+      sessionData = newSession;
+    }
+
+    const activeSessionId = sessionData.id;
 
     // 4. Retrieve pre-indexed machine documentation
     let machineKnowledgeText = "";
@@ -100,7 +146,7 @@ export async function POST(request) {
     const { data: recentEvents } = await supabaseAdmin
       .from("diagnostic_events")
       .select("sender, content, event_type, created_at")
-      .eq("session_id", sessionId)
+      .eq("session_id", activeSessionId)
       .order("created_at", { ascending: true })
       .limit(12);
 
@@ -111,7 +157,7 @@ export async function POST(request) {
 
     // 6. Record the engineer's new event
     await supabaseAdmin.from("diagnostic_events").insert({
-      session_id: sessionId,
+      session_id: activeSessionId,
       sender: "engineer",
       event_type: eventType,
       content: userInput,
@@ -181,7 +227,7 @@ OUTPUT STRICT JSON ONLY:
 
     // 9. Persist assistant reply
     await supabaseAdmin.from("diagnostic_events").insert({
-      session_id: sessionId,
+      session_id: activeSessionId,
       sender: "assistant",
       event_type: "message",
       content: parsed.replyMessage || "Analysis updated.",
@@ -217,7 +263,7 @@ OUTPUT STRICT JSON ONLY:
     const { data: updatedSession, error: updateErr } = await supabaseAdmin
       .from("diagnostic_sessions")
       .update(updatePayload)
-      .eq("id", sessionId)
+      .eq("id", activeSessionId)
       .select()
       .single();
 
