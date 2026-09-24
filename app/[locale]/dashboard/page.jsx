@@ -514,8 +514,8 @@ export default function DashboardPage() {
                 }}
               >
                 <span style={{ fontSize: "0.85rem", color: "#94A3B8" }}>
-                  {t("filesAttached") || "Attached Documents"} ({documents.length})
-                </span>
+  {t("filesAttached") || "Attached Documents:"} {documents.length} ({formatBytes(totalBytes)})
+</span>
                 <label
                   style={{
                     backgroundColor: "#1E293B",
