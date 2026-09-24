@@ -823,6 +823,171 @@ export default function DashboardPage() {
           )}
         </aside>
       </div>
+      {/* Responsive Manage Files Modal */}
+      {showManageModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setShowManageModal(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.75)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+            zIndex: 999,
+            backdropFilter: "blur(4px)",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: "#0F172A",
+              border: "1px solid #1E293B",
+              borderRadius: "10px",
+              width: "100%",
+              maxWidth: "600px",
+              maxHeight: "85vh",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5)",
+              overflow: "hidden",
+            }}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "1.25rem 1.5rem",
+                borderBottom: "1px solid #1E293B",
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, fontSize: "1.1rem", color: "#F8FAFC" }}>
+                  {t("machineFilesTitle") || "Machine Documentation"}
+                </h3>
+                <span style={{ fontSize: "0.75rem", color: "#94A3B8" }}>
+                  {documents.length} files • {formatBytes(totalBytes)}
+                </span>
+              </div>
+              <button
+                onClick={() => setShowManageModal(false)}
+                style={{
+                  backgroundColor: "transparent",
+                  border: "none",
+                  color: "#94A3B8",
+                  fontSize: "1.25rem",
+                  cursor: "pointer",
+                  padding: "0.25rem 0.5rem",
+                  lineHeight: 1,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Scrollable File List */}
+            <div
+              style={{
+                padding: "1rem 1.5rem",
+                overflowY: "auto",
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.75rem",
+              }}
+            >
+              {documents.length === 0 ? (
+                <p style={{ color: "#64748B", fontSize: "0.85rem", textAlign: "center", margin: "2rem 0" }}>
+                  {t("noFilesAttached") || "No documents uploaded for this machine."}
+                </p>
+              ) : (
+                documents.map((doc) => (
+                  <div
+                    key={doc.id}
+                    style={{
+                      backgroundColor: "#0B0F17",
+                      border: "1px solid #1E293B",
+                      borderRadius: "6px",
+                      padding: "0.75rem 1rem",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "0.75rem",
+                    }}
+                  >
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <p
+                        style={{
+                          margin: 0,
+                          fontSize: "0.85rem",
+                          color: "#E2E8F0",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                        title={doc.file_name}
+                      >
+                        📄 {doc.file_name}[cite: 2]
+                      </p>
+                      <span style={{ fontSize: "0.75rem", color: "#64748B" }}>
+                        {formatBytes(doc.file_size_bytes)}[cite: 2]
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={() => handleDeleteFile(doc)}
+                      disabled={deletingId === doc.id}
+                      style={{
+                        backgroundColor: "#7F1D1D",
+                        color: "#FECACA",
+                        border: "1px solid #991B1B",
+                        padding: "0.3rem 0.7rem",
+                        borderRadius: "4px",
+                        fontSize: "0.75rem",
+                        cursor: deletingId === doc.id ? "not-allowed" : "pointer",
+                        opacity: deletingId === doc.id ? 0.6 : 1,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {deletingId === doc.id ? (t("deleting") || "Deleting...") : (t("delete") || "Delete")}
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              style={{
+                padding: "1rem 1.5rem",
+                borderTop: "1px solid #1E293B",
+                display: "flex",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                onClick={() => setShowManageModal(false)}
+                style={{
+                  backgroundColor: "#1E293B",
+                  color: "#F8FAFC",
+                  border: "1px solid #334155",
+                  padding: "0.5rem 1.25rem",
+                  borderRadius: "6px",
+                  fontSize: "0.85rem",
+                  cursor: "pointer",
+                }}
+              >
+                {t("close") || "Close"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
