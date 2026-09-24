@@ -68,7 +68,7 @@ export async function POST(request) {
     };
     const fallbackLang = fallbackLanguageMap[locale] || "English";
 
-    // 4. Retrieve Machine Details & Attached Documentation (if machineId provided)
+// 4. Retrieve Machine Details & Attached Documentation (if machineId provided)
     let machineContextText = "";
     const imagePayloads = [];
 
@@ -84,7 +84,7 @@ export async function POST(request) {
         machineContextText += `Target Equipment: ${machine.name}\nController/Model: ${machine.brand_model || "Not specified"}\n`;
       }
 
-      // Fetch attached documents catalog
+      // Fetch all attached documents for this machine
       const { data: docs } = await supabaseAdmin
         .from("machine_documents")
         .select("file_name, file_path, mime_type, file_size_bytes")
@@ -98,24 +98,38 @@ export async function POST(request) {
           const fileSizeKb = Math.round((Number(doc.file_size_bytes) || 0) / 1024);
           machineContextText += `- ${doc.file_name} (${fileSizeKb} KB)\n`;
 
-          // If the attached document is an image/schematic, provide visual context (up to 4 images)
           const isImage =
             doc.mime_type?.startsWith("image/") ||
-            /\.(png|jpe?g|webp)$/i.test(doc.file_name);
+            /\.(png|jpe?g|webp|bmp)$/i.test(doc.file_name);
 
-          if (isImage && imagePayloads.length < 4) {
-            const { data: signedData } = await supabaseAdmin.storage
-              .from("machine-docs")
-              .createSignedUrl(doc.file_path, 300); // 5-minute temporary link
+          // Stream up to 10 images directly via Base64 so OpenAI receives the exact visual diagrams
+          if (isImage && imagePayloads.length < 10) {
+            try {
+              const { data: fileBlob, error: downloadError } = await supabaseAdmin.storage
+                .from("machine-docs")
+                .download(doc.file_path);
 
-            if (signedData?.signedUrl) {
-              imagePayloads.push({
-                type: "image_url",
-                image_url: {
-                  url: signedData.signedUrl,
-                  detail: "high",
-                },
-              });
+              if (!downloadError && fileBlob) {
+                const arrayBuffer = await fileBlob.arrayBuffer();
+                const buffer = Buffer.from(arrayBuffer);
+                const base64Data = buffer.toString("base64");
+                const mime =
+                  doc.mime_type && doc.mime_type.startsWith("image/")
+                    ? doc.mime_type
+                    : doc.file_name.endsWith(".png")
+                    ? "image/png"
+                    : "image/jpeg";
+
+                imagePayloads.push({
+                  type: "image_url",
+                  image_url: {
+                    url: `data:${mime};base64,${base64Data}`,
+                    detail: "high",
+                  },
+                });
+              }
+            } catch (dlErr) {
+              console.warn(`Failed to process image ${doc.file_name}:`, dlErr.message);
             }
           }
         }
