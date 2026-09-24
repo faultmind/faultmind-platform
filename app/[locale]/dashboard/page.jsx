@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
 import { supabase } from "../../../lib/supabaseClient";
+import DiagnosticWorkspaceModal from "../../../components/DiagnosticWorkspaceModal";
 
 function formatBytes(bytes) {
   if (!bytes || bytes === 0) return "0 KB";
@@ -39,6 +40,8 @@ export default function DashboardPage() {
 
   const [showManageModal, setShowManageModal] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+
+  const [showWorkspace, setShowWorkspace] = useState(false);
 
   // Delete a document from both Storage and Database
   const handleDeleteFile = async (doc) => {
