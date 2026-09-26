@@ -8,6 +8,7 @@ export default function DiagnosticWorkspaceModal({
   onClose,
   machineId,
   machineName,
+  sessionId,
 }) {
   const [session, setSession] = useState(null);
   const [events, setEvents] = useState([]);
@@ -38,9 +39,9 @@ export default function DiagnosticWorkspaceModal({
     }
   }, [events, activeTab]);
 
-  // 1. Initialize or resume active session
+  // 1. Initialize session (Support explicit audit session OR active live session)
   useEffect(() => {
-    if (!isOpen || !machineId) return;
+    if (!isOpen) return;
 
     let isMounted = true;
 
@@ -58,48 +59,66 @@ export default function DiagnosticWorkspaceModal({
           throw new Error("You must be logged in to access the workspace.");
         }
 
-        // Check for existing active session
-        let { data: existingSession, error: fetchErr } = await supabase
-          .from("diagnostic_sessions")
-          .select("*")
-          .eq("machine_id", machineId)
-          .eq("user_id", user.id)
-          .eq("status", "active")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        let currentSession = null;
 
-        if (fetchErr) {
-          console.error("Session lookup error:", fetchErr.message);
-        }
-
-        if (!existingSession) {
-          // Create new session
-          const { data: newSession, error: insertErr } = await supabase
+        // Branch A: Explicit sessionId passed (e.g. from Incident Audit Trail)
+        if (sessionId) {
+          const { data: explicitSess, error: explicitErr } = await supabase
             .from("diagnostic_sessions")
-            .insert({
-              machine_id: machineId,
-              user_id: user.id,
-              title: `Investigation: ${machineName || "Line Machine"}`,
-              active_hypothesis: "Awaiting initial fault symptoms...",
-            })
-            .select()
+            .select("*")
+            .eq("id", sessionId)
             .single();
 
-          if (insertErr) {
-            throw new Error(`Database error: ${insertErr.message}`);
+          if (explicitErr || !explicitSess) {
+            throw new Error(`Failed to load incident session: ${explicitErr?.message || "Not found"}`);
           }
-          existingSession = newSession;
+          currentSession = explicitSess;
+        } else if (machineId) {
+          // Branch B: Look for active investigation for this machine
+          let { data: existingActive, error: fetchErr } = await supabase
+            .from("diagnostic_sessions")
+            .select("*")
+            .eq("machine_id", machineId)
+            .eq("user_id", user.id)
+            .eq("status", "active")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (fetchErr) {
+            console.warn("Session lookup warning:", fetchErr.message);
+          }
+
+          if (!existingActive) {
+            // Create a brand new active session
+            const { data: newSession, error: insertErr } = await supabase
+              .from("diagnostic_sessions")
+              .insert({
+                machine_id: machineId,
+                user_id: user.id,
+                title: `Investigation: ${machineName || "Line Machine"}`,
+                active_hypothesis: "Awaiting initial fault symptoms...",
+              })
+              .select()
+              .single();
+
+            if (insertErr) {
+              throw new Error(`Database error: ${insertErr.message}`);
+            }
+            existingActive = newSession;
+          }
+
+          currentSession = existingActive;
         }
 
         if (!isMounted) return;
-        setSession(existingSession);
+        setSession(currentSession);
 
-        if (existingSession?.id) {
+        if (currentSession?.id) {
           const { data: history, error: historyErr } = await supabase
             .from("diagnostic_events")
             .select("*")
-            .eq("session_id", existingSession.id)
+            .eq("session_id", currentSession.id)
             .order("created_at", { ascending: true });
 
           if (historyErr) {
@@ -121,7 +140,7 @@ export default function DiagnosticWorkspaceModal({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, machineId, machineName]);
+  }, [isOpen, machineId, machineName, sessionId]);
 
   // 2. Realtime WebSocket subscription
   useEffect(() => {
@@ -195,7 +214,7 @@ export default function DiagnosticWorkspaceModal({
         },
         body: JSON.stringify({
           sessionId: session.id,
-          machineId,
+          machineId: machineId || session.machine_id,
           userInput: textToSend,
           eventType,
         }),
@@ -219,6 +238,8 @@ export default function DiagnosticWorkspaceModal({
   };
 
   if (!isOpen) return null;
+
+  const isResolved = session?.status && session.status !== "active";
 
   return (
     <div
@@ -272,13 +293,24 @@ export default function DiagnosticWorkspaceModal({
                 textOverflow: "ellipsis",
               }}
             >
-              🛠️ {machineName || "Diagnostic Workspace"}
+              🛠️ {machineName || session?.title || "Diagnostic Workspace"}
             </h2>
-            <span style={{ fontSize: "0.7rem", color: initError ? "#EF4444" : "#38BDF8" }}>
+            <span
+              style={{
+                fontSize: "0.7rem",
+                color: initError
+                  ? "#EF4444"
+                  : isResolved
+                  ? "#34D399"
+                  : "#38BDF8",
+              }}
+            >
               {loading
                 ? "Connecting session..."
                 : initError
                 ? `Connection error: ${initError}`
+                : isResolved
+                ? `INCIDENT LOG • STATUS: ${session.status.toUpperCase()}`
                 : `Status: ${session?.status?.toUpperCase() || "ACTIVE"}`}
             </span>
           </div>
@@ -441,9 +473,13 @@ export default function DiagnosticWorkspaceModal({
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
                   placeholder={
-                    !session?.id ? "Connecting session..." : "Enter observation or multimeter reading..."
+                    isResolved
+                      ? "This incident is resolved (read-only audit log)."
+                      : !session?.id
+                      ? "Connecting session..."
+                      : "Enter observation or multimeter reading..."
                   }
-                  disabled={submitting || !session?.id}
+                  disabled={submitting || !session?.id || isResolved}
                   style={{
                     flex: 1,
                     backgroundColor: "#0B0F17",
@@ -453,12 +489,12 @@ export default function DiagnosticWorkspaceModal({
                     padding: "0.55rem 0.75rem",
                     fontSize: "0.85rem",
                     outline: "none",
-                    opacity: !session?.id ? 0.6 : 1,
+                    opacity: !session?.id || isResolved ? 0.6 : 1,
                   }}
                 />
                 <button
                   type="submit"
-                  disabled={!inputText.trim() || submitting || !session?.id}
+                  disabled={!inputText.trim() || submitting || !session?.id || isResolved}
                   style={{
                     backgroundColor: "#2563EB",
                     color: "#FFFFFF",
@@ -466,8 +502,14 @@ export default function DiagnosticWorkspaceModal({
                     padding: "0.55rem 1rem",
                     borderRadius: "6px",
                     fontWeight: 600,
-                    cursor: !inputText.trim() || submitting || !session?.id ? "not-allowed" : "pointer",
-                    opacity: !inputText.trim() || submitting || !session?.id ? 0.5 : 1,
+                    cursor:
+                      !inputText.trim() || submitting || !session?.id || isResolved
+                        ? "not-allowed"
+                        : "pointer",
+                    opacity:
+                      !inputText.trim() || submitting || !session?.id || isResolved
+                        ? 0.5
+                        : 1,
                     fontSize: "0.85rem",
                   }}
                 >
@@ -543,26 +585,28 @@ export default function DiagnosticWorkspaceModal({
                         <span style={{ fontSize: "0.75rem", color: "#F1F5F9", lineHeight: 1.3 }}>
                           {task.instruction}
                         </span>
-                        <button
-                          onClick={() => {
-                            handleTaskComplete(task);
-                            if (isMobile) setActiveTab("chat");
-                          }}
-                          disabled={submitting}
-                          style={{
-                            backgroundColor: "#065F46",
-                            border: "1px solid #059669",
-                            color: "#A7F3D0",
-                            borderRadius: "4px",
-                            fontSize: "0.7rem",
-                            padding: "0.3rem 0.55rem",
-                            cursor: "pointer",
-                            whiteSpace: "nowrap",
-                            flexShrink: 0,
-                          }}
-                        >
-                          ✓ Confirm
-                        </button>
+                        {!isResolved && (
+                          <button
+                            onClick={() => {
+                              handleTaskComplete(task);
+                              if (isMobile) setActiveTab("chat");
+                            }}
+                            disabled={submitting}
+                            style={{
+                              backgroundColor: "#065F46",
+                              border: "1px solid #059669",
+                              color: "#A7F3D0",
+                              borderRadius: "4px",
+                              fontSize: "0.7rem",
+                              padding: "0.3rem 0.55rem",
+                              cursor: "pointer",
+                              whiteSpace: "nowrap",
+                              flexShrink: 0,
+                            }}
+                          >
+                            ✓ Confirm
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
