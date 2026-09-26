@@ -62,7 +62,7 @@ export async function POST(request) {
       }
     }
 
-    // If still null, try finding any active session for this machine
+    // If still null, look for existing active session for this machine
     if (!sessionData && machineId) {
       const { data: existingActive } = await supabaseAdmin
         .from("diagnostic_sessions")
@@ -185,6 +185,7 @@ DIAGNOSTIC PROTOCOL:
 3. Keep instructions concise and task-driven:
    - Tell the technician what specific wire, terminal, PLC LED, or sensor to inspect next.
    - Do not output generic advice; specify exact tag symbols (e.g. CPU_Input13) or physical addresses (e.g. I1.5).
+4. The field engineer retains sole authority to resolve or close the session. Never output session close directives.
 
 OUTPUT STRICT JSON ONLY:
 {
@@ -205,8 +206,7 @@ OUTPUT STRICT JSON ONLY:
         "tool_required": "multimeter" | "plc_status" | "visual_check",
         "verification_type": "boolean" | "voltage" | "inspection"
       }
-    ],
-    "session_status": "active" | "resolved" | "escalated"
+    ]
   }
 }`;
 
@@ -234,7 +234,7 @@ OUTPUT STRICT JSON ONLY:
       metadata: patch,
     });
 
-    // 10. Merge state updates into diagnostic_sessions
+    // 10. Merge state updates into diagnostic_sessions (session status is never overwritten here)
     const mergedVerified = [
       ...(sessionData.verified_signals || []),
       ...(patch.add_verified_signals || []),
@@ -255,9 +255,6 @@ OUTPUT STRICT JSON ONLY:
     }
     if (patch.actionable_tasks) {
       updatePayload.pending_tasks = patch.actionable_tasks;
-    }
-    if (patch.session_status) {
-      updatePayload.status = patch.session_status;
     }
 
     const { data: updatedSession, error: updateErr } = await supabaseAdmin
