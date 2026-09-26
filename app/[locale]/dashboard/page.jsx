@@ -21,7 +21,6 @@ export default function DashboardPage() {
 
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
-  const [faultQuery, setFaultQuery] = useState("");
 
   // Machine management state
   const [machines, setMachines] = useState([]);
@@ -32,16 +31,15 @@ export default function DashboardPage() {
   const [documents, setDocuments] = useState([]);
   const [uploading, setUploading] = useState(false);
 
-  // Diagnostic execution & logs
-  const [analyzing, setAnalyzing] = useState(false);
-  const [result, setResult] = useState(null);
-  const [errorMsg, setErrorMsg] = useState("");
-  const [historyLogs, setHistoryLogs] = useState([]);
+  // Session state management
+  const [activeSession, setActiveSession] = useState(null);
+  const [pastSessions, setPastSessions] = useState([]);
+  const [selectedSessionId, setSelectedSessionId] = useState(null);
+  const [showWorkspace, setShowWorkspace] = useState(false);
 
+  const [errorMsg, setErrorMsg] = useState("");
   const [showManageModal, setShowManageModal] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
-
-  const [showWorkspace, setShowWorkspace] = useState(false);
 
   // Delete a document from both Storage and Database
   const handleDeleteFile = async (doc) => {
@@ -53,7 +51,6 @@ export default function DashboardPage() {
     setErrorMsg("");
 
     try {
-      // 1. Remove binary file from Supabase Storage
       const { error: storageError } = await supabase.storage
         .from("machine-docs")
         .remove([doc.file_path]);
@@ -62,7 +59,6 @@ export default function DashboardPage() {
         console.warn("Storage deletion warning:", storageError.message);
       }
 
-      // 2. Delete row from machine_documents table
       const { error: dbError } = await supabase
         .from("machine_documents")
         .delete()
@@ -70,7 +66,6 @@ export default function DashboardPage() {
 
       if (dbError) throw dbError;
 
-      // 3. Update local state
       setDocuments((prev) => prev.filter((d) => d.id !== doc.id));
     } catch (err) {
       console.error("Delete Error:", err);
@@ -80,17 +75,16 @@ export default function DashboardPage() {
     }
   };
 
-  // Computed variable (MUST BE BELOW `documents` declaration)
   const totalBytes = (documents || []).reduce(
     (acc, doc) => acc + (Number(doc?.file_size_bytes) || 0),
     0
   );
 
+  // Initialize Dashboard
   useEffect(() => {
     async function initDashboard() {
       setLoading(true);
 
-      // 1. Check active user session
       const {
         data: { user: currentUser },
       } = await supabase.auth.getUser();
@@ -100,7 +94,6 @@ export default function DashboardPage() {
         return;
       }
 
-      // 2. Check active subscription
       const { data: subData, error: subError } = await supabase
         .from("subscriptions")
         .select("status")
@@ -114,7 +107,6 @@ export default function DashboardPage() {
 
       setUser(currentUser);
       await fetchMachines(currentUser.id);
-      await fetchHistory(currentUser.id);
       setLoading(false);
     }
 
@@ -131,25 +123,54 @@ export default function DashboardPage() {
     setMachines(data || []);
   }
 
-  // Load past diagnostic history logs
-  async function fetchHistory(userId) {
-    const { data } = await supabase
-      .from("diagnostic_logs")
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(10);
-    setHistoryLogs(data || []);
-  }
+  // Load machine sessions (active investigation + past incidents)
+  useEffect(() => {
+    if (!selectedMachineId) {
+      setActiveSession(null);
+      setPastSessions([]);
+      return;
+    }
 
-// Fetch documents and listen for live Realtime updates
+    async function loadMachineSessions() {
+      const activeUser = user || (await supabase.auth.getUser()).data?.user;
+      if (!activeUser) return;
+
+      // 1. Fetch current active session
+      const { data: active } = await supabase
+        .from("diagnostic_sessions")
+        .select("*")
+        .eq("machine_id", selectedMachineId)
+        .eq("user_id", activeUser.id)
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      setActiveSession(active || null);
+
+      // 2. Fetch past resolved or closed incident sessions
+      const { data: past } = await supabase
+        .from("diagnostic_sessions")
+        .select("*")
+        .eq("machine_id", selectedMachineId)
+        .eq("user_id", activeUser.id)
+        .neq("status", "active")
+        .order("created_at", { ascending: false })
+        .limit(15);
+
+      setPastSessions(past || []);
+    }
+
+    loadMachineSessions();
+  }, [selectedMachineId, showWorkspace, user]);
+
+  // Fetch documents and listen for live Realtime updates
   useEffect(() => {
     if (!selectedMachineId) {
       setDocuments([]);
       return;
     }
 
-    // 1. Initial fetch of documents for the selected machine
     async function loadDocs() {
       const { data } = await supabase
         .from("machine_documents")
@@ -161,7 +182,6 @@ export default function DashboardPage() {
 
     loadDocs();
 
-    // 2. Realtime WebSocket subscription for instant status synchronization
     const channel = supabase
       .channel(`machine_docs_${selectedMachineId}`)
       .on(
@@ -173,7 +193,6 @@ export default function DashboardPage() {
           filter: `machine_id=eq.${selectedMachineId}`,
         },
         (payload) => {
-          // Flip status (e.g. pending -> processing -> completed) live
           setDocuments((prev) =>
             prev.map((doc) =>
               doc.id === payload.new.id ? { ...doc, ...payload.new } : doc
@@ -210,7 +229,6 @@ export default function DashboardPage() {
       )
       .subscribe();
 
-    // 3. Clean teardown when switching machines or unmounting
     return () => {
       supabase.removeChannel(channel);
     };
@@ -221,7 +239,7 @@ export default function DashboardPage() {
     router.replace(`/${locale}`);
   };
 
-  // Add new machine record with explicit error handling
+  // Add new machine record
   const handleCreateMachine = async (e) => {
     e.preventDefault();
     if (!newMachineName.trim()) return;
@@ -230,9 +248,7 @@ export default function DashboardPage() {
 
     try {
       const activeUser = user || (await supabase.auth.getUser()).data?.user;
-      if (!activeUser) {
-        throw new Error("User session expired. Please sign in again.");
-      }
+      if (!activeUser) throw new Error("User session expired. Please sign in again.");
 
       const { data, error } = await supabase
         .from("machines")
@@ -246,9 +262,7 @@ export default function DashboardPage() {
         .select()
         .single();
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       if (data) {
         setMachines((prev) => [data, ...prev]);
@@ -263,7 +277,7 @@ export default function DashboardPage() {
     }
   };
 
-  // Upload multiple files directly to Supabase Storage, record in DB, & trigger background OCR ingestion
+  // Upload file and trigger background ingestion
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0 || !selectedMachineId) return;
@@ -286,14 +300,12 @@ export default function DashboardPage() {
         const cleanFileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
         const filePath = `${activeUser.id}/${selectedMachineId}/${cleanFileName}`;
 
-        // 1. Upload file binary to Storage bucket
         const { error: uploadError } = await supabase.storage
           .from("machine-docs")
           .upload(filePath, file);
 
         if (uploadError) throw uploadError;
 
-        // 2. Insert record in machine_documents
         const { data: docData, error: dbError } = await supabase
           .from("machine_documents")
           .insert({
@@ -312,7 +324,6 @@ export default function DashboardPage() {
 
         uploadedDocs.push(docData);
 
-        // 3. Asynchronously trigger background ingestion worker if token available
         if (token && docData?.id) {
           fetch("/api/ingest", {
             method: "POST",
@@ -324,7 +335,6 @@ export default function DashboardPage() {
           })
             .then(async (res) => {
               if (res.ok) {
-                // Update local document status to completed
                 setDocuments((currentDocs) =>
                   currentDocs.map((d) =>
                     d.id === docData.id ? { ...d, ocr_status: "completed" } : d
@@ -332,11 +342,10 @@ export default function DashboardPage() {
                 );
               }
             })
-            .catch((e) => console.warn("Background ingestion failed to trigger:", e.message));
+            .catch((e) => console.warn("Background ingestion trigger failed:", e.message));
         }
       }
 
-      // Update state with newly attached files
       setDocuments((prev) => [...uploadedDocs, ...prev]);
     } catch (err) {
       console.error("Upload failure:", err);
@@ -345,58 +354,6 @@ export default function DashboardPage() {
       setUploading(false);
       e.target.value = "";
     }
-  };
-
-  // Execute diagnostic API call
-  const handleDiagnose = async () => {
-    if (!faultQuery.trim()) return;
-    setAnalyzing(true);
-    setErrorMsg("");
-    setResult(null);
-
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const token = session?.access_token;
-
-      const res = await fetch("/api/diagnose", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          faultQuery,
-          locale,
-          machineId: selectedMachineId || null,
-        }),
-      });
-
-      const resData = await res.json();
-      if (!res.ok) throw new Error(resData.error || "Analysis failed");
-
-      setResult(resData.data);
-      await fetchHistory(user.id);
-    } catch (err) {
-      setErrorMsg(err.message);
-    } finally {
-      setAnalyzing(false);
-    }
-  };
-
-  // Reload previous log from history
-  const handleSelectHistoryItem = (item) => {
-    setResult({
-      direction: item.direction,
-      mainTitle: item.main_title,
-      sectionOneTitle: item.section_one_title,
-      sectionTwoTitle: item.section_two_title,
-      sectionOneItems: item.section_one_items || [],
-      sectionTwoItems: item.section_two_items || [],
-    });
-    setFaultQuery(item.query_text);
-    if (item.machine_id) setSelectedMachineId(item.machine_id);
   };
 
   if (loading) {
@@ -441,15 +398,9 @@ export default function DashboardPage() {
       >
         <div>
           <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>
-            {t("title")}
+            {t("title") || "FaultMind Workstation"}
           </h1>
-          <p
-            style={{
-              color: "#94A3B8",
-              fontSize: "0.875rem",
-              margin: "0.25rem 0 0 0",
-            }}
-          >
+          <p style={{ color: "#94A3B8", fontSize: "0.875rem", margin: "0.25rem 0 0 0" }}>
             {user?.email}
           </p>
         </div>
@@ -470,7 +421,7 @@ export default function DashboardPage() {
         </button>
       </header>
 
-      {/* Main Grid Layout: Diagnostics + History Sidebar */}
+      {/* Main Grid Layout */}
       <div
         style={{
           display: "grid",
@@ -480,7 +431,7 @@ export default function DashboardPage() {
           margin: "0 auto",
         }}
       >
-        {/* Left Column: Diagnostics Workspace */}
+        {/* Left Column: Machine Management & Command Center */}
         <main>
           {/* Machine Selection & Add Machine Bar */}
           <div
@@ -506,7 +457,7 @@ export default function DashboardPage() {
                   marginBottom: "0.35rem",
                 }}
               >
-                {t("selectMachine") || "Select Machine (Optional)"}
+                {t("selectMachine") || "Select Equipment Under Investigation"}
               </label>
               <select
                 value={selectedMachineId}
@@ -521,7 +472,7 @@ export default function DashboardPage() {
                 }}
               >
                 <option value="">
-                  {t("noMachine") || "-- General Diagnostic (No Machine) --"}
+                  {t("noMachine") || "-- Select Machine to Start --"}
                 </option>
                 {machines.map((m) => (
                   <option key={m.id} value={m.id}>
@@ -546,26 +497,6 @@ export default function DashboardPage() {
             >
               {t("addMachineBtn") || "+ Add Machine"}
             </button>
-
-            {selectedMachineId && (
-  <button
-    type="button"
-    onClick={() => setShowWorkspace(true)}
-    style={{
-      backgroundColor: "#065F46",
-      color: "#A7F3D0",
-      border: "1px solid #059669",
-      padding: "0.5rem 1rem",
-      borderRadius: "6px",
-      cursor: "pointer",
-      fontSize: "0.85rem",
-      fontWeight: 600,
-      marginTop: "1.2rem",
-    }}
-  >
-    ⚡ Launch Diagnostic Workspace
-  </button>
-)}
           </div>
 
           {/* Add Machine Inline Form */}
@@ -657,7 +588,7 @@ export default function DashboardPage() {
             >
               <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
                 <span style={{ fontSize: "0.85rem", color: "#94A3B8" }}>
-                  {t("filesAttached") || "Attached Documents:"} {documents.length} ({formatBytes(totalBytes)})
+                  Attached Documents: {documents.length} ({formatBytes(totalBytes)})
                 </span>
 
                 {documents.length > 0 && (
@@ -691,9 +622,7 @@ export default function DashboardPage() {
                   fontWeight: 500,
                 }}
               >
-                {uploading
-                  ? t("uploading") || "Uploading & Indexing..."
-                  : t("uploadDoc") || "Attach Manual / Schematic"}
+                {uploading ? "Uploading & Indexing..." : "Attach Manual / Schematic"}
                 <input
                   type="file"
                   multiple
@@ -706,153 +635,183 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Fault Input Card */}
+          {/* Error Message Display */}
+          {errorMsg && (
+            <p
+              dir="auto"
+              style={{
+                color: "#EF4444",
+                marginBottom: "1.5rem",
+                fontSize: "0.9rem",
+                textAlign: "start",
+              }}
+            >
+              {errorMsg}
+            </p>
+          )}
+
+          {/* Primary Diagnostic Command Center */}
           <div
             style={{
               backgroundColor: "#0F172A",
               border: "1px solid #1E293B",
-              borderRadius: "8px",
+              borderRadius: "10px",
               padding: "1.5rem",
             }}
           >
-            <div style={{ marginBottom: "1.25rem" }}>
-              <h2 style={{ fontSize: "1.15rem", fontWeight: 600, margin: 0 }}>
-                {t("subtitle")}
-              </h2>
-            </div>
-
-            <textarea
-              rows={6}
-              dir={faultQuery.trim().length > 0 ? "auto" : locale === "ar" ? "rtl" : "ltr"}
-              value={faultQuery}
-              onChange={(e) => setFaultQuery(e.target.value)}
-              placeholder={t("inputPlaceholder")}
-              style={{
-                width: "100%",
-                backgroundColor: "#0B0F17",
-                border: "1px solid #334155",
-                borderRadius: "6px",
-                color: "#F8FAFC",
-                padding: "1rem",
-                fontSize: "0.95rem",
-                resize: "vertical",
-                boxSizing: "border-box",
-                textAlign: "start",
-              }}
-            />
-
             <div
               style={{
-                marginTop: "1rem",
                 display: "flex",
-                justifyContent: "flex-end",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                marginBottom: "1.25rem",
               }}
             >
-              <button
-                onClick={handleDiagnose}
-                disabled={!faultQuery.trim() || analyzing}
-                style={{
-                  backgroundColor: "#2563EB",
-                  color: "#FFFFFF",
-                  border: "none",
-                  padding: "0.75rem 1.5rem",
-                  borderRadius: "6px",
-                  fontWeight: 600,
-                  cursor: faultQuery.trim() && !analyzing ? "pointer" : "not-allowed",
-                  opacity: faultQuery.trim() && !analyzing ? 1 : 0.5,
-                }}
-              >
-                {analyzing ? t("analyzing") || "Analyzing..." : t("analyzeBtn")}
-              </button>
+              <div>
+                <h2 style={{ fontSize: "1.2rem", fontWeight: 700, margin: 0, color: "#F8FAFC" }}>
+                  🛠️ Active Incident Diagnostic
+                </h2>
+                <p style={{ margin: "0.35rem 0 0 0", fontSize: "0.8rem", color: "#94A3B8" }}>
+                  Live state engine evaluating PLC signals, circuit continuity, and actionable checkpoints.
+                </p>
+              </div>
+
+              {activeSession ? (
+                <span
+                  style={{
+                    backgroundColor: "#064E3B",
+                    color: "#6EE7B7",
+                    border: "1px solid #059669",
+                    padding: "0.3rem 0.75rem",
+                    borderRadius: "9999px",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                  }}
+                >
+                  ● INVESTIGATION ACTIVE
+                </span>
+              ) : (
+                <span
+                  style={{
+                    backgroundColor: "#1E293B",
+                    color: "#94A3B8",
+                    padding: "0.3rem 0.75rem",
+                    borderRadius: "9999px",
+                    fontSize: "0.75rem",
+                  }}
+                >
+                  STANDBY / HEALTHY
+                </span>
+              )}
             </div>
 
-            {/* Error Message Display */}
-            {errorMsg && (
-              <p
-                dir="auto"
+            {!selectedMachineId ? (
+              <div
                 style={{
-                  color: "#EF4444",
-                  marginTop: "1rem",
-                  fontSize: "0.9rem",
-                  textAlign: "start",
+                  backgroundColor: "#0B0F17",
+                  border: "1px dashed #334155",
+                  borderRadius: "8px",
+                  padding: "2rem",
+                  textAlign: "center",
+                  marginBottom: "1.25rem",
                 }}
               >
-                {errorMsg}
-              </p>
-            )}
-
-            {/* Diagnostic Results Presentation */}
-            {result && (
+                <p style={{ margin: 0, fontSize: "0.9rem", color: "#94A3B8" }}>
+                  Select equipment from the dropdown above to initialize or resume an investigation.
+                </p>
+              </div>
+            ) : activeSession ? (
               <div
-                dir={result.direction || "ltr"}
                 style={{
-                  marginTop: "2rem",
                   backgroundColor: "#0B0F17",
                   border: "1px solid #1E293B",
-                  borderRadius: "6px",
-                  padding: "1.5rem",
-                  textAlign: "start",
+                  borderRadius: "8px",
+                  padding: "1.25rem",
+                  marginBottom: "1.25rem",
                 }}
               >
-                <h3 style={{ color: "#38BDF8", marginTop: 0 }}>
-                  {result.mainTitle || "Diagnostic Findings"}
-                </h3>
+                <div style={{ marginBottom: "0.75rem" }}>
+                  <span style={{ fontSize: "0.75rem", color: "#FCD34D", fontWeight: 600, textTransform: "uppercase" }}>
+                    Current Hypothesis:
+                  </span>
+                  <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.95rem", color: "#F8FAFC", lineHeight: 1.5 }}>
+                    {activeSession.active_hypothesis || "Analyzing breakdown symptoms..."}
+                  </p>
+                </div>
 
-                {result.sectionOneItems?.length > 0 && (
-                  <>
-                    <h4 style={{ color: "#F8FAFC", marginBottom: "0.5rem" }}>
-                      {result.sectionOneTitle}:
-                    </h4>
-                    <ul
-                      style={{
-                        color: "#CBD5E1",
-                        lineHeight: 1.8,
-                        paddingInlineStart: "1.5rem",
-                        margin: 0,
-                      }}
-                    >
-                      {result.sectionOneItems.map((item, idx) => (
-                        <li key={idx} style={{ marginBottom: "0.35rem" }}>
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-
-                {result.sectionTwoItems?.length > 0 && (
-                  <>
-                    <h4
-                      style={{
-                        color: "#F8FAFC",
-                        marginBottom: "0.5rem",
-                        marginTop: "1.5rem",
-                      }}
-                    >
-                      {result.sectionTwoTitle}:
-                    </h4>
-                    <ol
-                      style={{
-                        color: "#CBD5E1",
-                        lineHeight: 1.8,
-                        paddingInlineStart: "1.5rem",
-                        margin: 0,
-                      }}
-                    >
-                      {result.sectionTwoItems.map((step, idx) => (
-                        <li key={idx} style={{ marginBottom: "0.35rem" }}>
-                          {step}
-                        </li>
-                      ))}
-                    </ol>
-                  </>
-                )}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                    gap: "0.75rem",
+                    marginTop: "1rem",
+                  }}
+                >
+                  <div style={{ backgroundColor: "#0F172A", padding: "0.75rem", borderRadius: "6px", border: "1px solid #1E293B" }}>
+                    <span style={{ fontSize: "0.75rem", color: "#38BDF8", display: "block" }}>Open Tasks</span>
+                    <span style={{ fontSize: "1.25rem", fontWeight: 700, color: "#F8FAFC" }}>
+                      {activeSession.pending_tasks?.length || 0}
+                    </span>
+                  </div>
+                  <div style={{ backgroundColor: "#0F172A", padding: "0.75rem", borderRadius: "6px", border: "1px solid #1E293B" }}>
+                    <span style={{ fontSize: "0.75rem", color: "#34D399", display: "block" }}>Verified Signals</span>
+                    <span style={{ fontSize: "1.25rem", fontWeight: 700, color: "#F8FAFC" }}>
+                      {activeSession.verified_signals?.length || 0}
+                    </span>
+                  </div>
+                  <div style={{ backgroundColor: "#0F172A", padding: "0.75rem", borderRadius: "6px", border: "1px solid #1E293B" }}>
+                    <span style={{ fontSize: "0.75rem", color: "#94A3B8", display: "block" }}>Ruled Out</span>
+                    <span style={{ fontSize: "1.25rem", fontWeight: 700, color: "#F8FAFC" }}>
+                      {activeSession.eliminated_causes?.length || 0}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{
+                  backgroundColor: "#0B0F17",
+                  border: "1px dashed #334155",
+                  borderRadius: "8px",
+                  padding: "1.75rem",
+                  textAlign: "center",
+                  marginBottom: "1.25rem",
+                }}
+              >
+                <p style={{ margin: 0, fontSize: "0.9rem", color: "#94A3B8" }}>
+                  No active breakdown reported for this unit. Schematics and logic tables are indexed and ready.
+                </p>
               </div>
             )}
+
+            <button
+              type="button"
+              disabled={!selectedMachineId}
+              onClick={() => {
+                setSelectedSessionId(activeSession?.id || null);
+                setShowWorkspace(true);
+              }}
+              style={{
+                width: "100%",
+                backgroundColor: !selectedMachineId ? "#1E293B" : "#2563EB",
+                color: !selectedMachineId ? "#64748B" : "#FFFFFF",
+                border: "none",
+                padding: "0.85rem",
+                borderRadius: "6px",
+                fontSize: "0.95rem",
+                fontWeight: 600,
+                cursor: !selectedMachineId ? "not-allowed" : "pointer",
+                transition: "background-color 0.2s",
+              }}
+            >
+              {activeSession
+                ? "⚡ Resume Live Diagnostic Workspace"
+                : "⚡ Start New Diagnostic Investigation"}
+            </button>
           </div>
         </main>
 
-        {/* Right Sidebar: Recent Diagnostic Logs */}
+        {/* Right Sidebar: Incident Logs & History */}
         <aside
           style={{
             backgroundColor: "#0F172A",
@@ -873,19 +832,26 @@ export default function DashboardPage() {
               paddingBottom: "0.5rem",
             }}
           >
-            {t("recentHistory") || "Diagnostic Log History"}
+            📋 Incident Audit Trail
           </h3>
 
-          {historyLogs.length === 0 ? (
+          {!selectedMachineId ? (
             <p style={{ color: "#64748B", fontSize: "0.85rem", margin: 0 }}>
-              {t("noHistory") || "No saved diagnostics yet."}
+              Select a machine to review logged incidents.
+            </p>
+          ) : pastSessions.length === 0 ? (
+            <p style={{ color: "#64748B", fontSize: "0.85rem", margin: 0 }}>
+              No past incidents recorded for this machine.
             </p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-              {historyLogs.map((log) => (
+              {pastSessions.map((sessionItem) => (
                 <div
-                  key={log.id}
-                  onClick={() => handleSelectHistoryItem(log)}
+                  key={sessionItem.id}
+                  onClick={() => {
+                    setSelectedSessionId(sessionItem.id);
+                    setShowWorkspace(true);
+                  }}
                   style={{
                     backgroundColor: "#0B0F17",
                     border: "1px solid #1E293B",
@@ -898,18 +864,32 @@ export default function DashboardPage() {
                   onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#1E293B")}
                 >
                   <p
-                    dir={log.direction || "ltr"}
                     style={{
                       fontSize: "0.825rem",
+                      fontWeight: 600,
                       color: "#E2E8F0",
-                      margin: "0 0 0.4rem 0",
+                      margin: "0 0 0.35rem 0",
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       textAlign: "start",
                     }}
                   >
-                    {log.query_text}
+                    {sessionItem.title || "Investigation Log"}
+                  </p>
+                  <p
+                    style={{
+                      fontSize: "0.75rem",
+                      color: "#94A3B8",
+                      margin: "0 0 0.5rem 0",
+                      lineHeight: 1.3,
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                    }}
+                  >
+                    {sessionItem.active_hypothesis || "Resolved"}
                   </p>
                   <div
                     style={{
@@ -919,8 +899,10 @@ export default function DashboardPage() {
                       color: "#64748B",
                     }}
                   >
-                    <span>{log.main_title || "Diagnosis"}</span>
-                    <span>{new Date(log.created_at).toLocaleDateString()}</span>
+                    <span style={{ color: sessionItem.status === "resolved" ? "#34D399" : "#FCD34D" }}>
+                      {sessionItem.status.toUpperCase()}
+                    </span>
+                    <span>{new Date(sessionItem.created_at).toLocaleDateString()}</span>
                   </div>
                 </div>
               ))}
@@ -1115,11 +1097,16 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-      {/* Diagnostic Workspace Modal */}
+
+      {/* Unified Diagnostic Workspace Modal */}
       <DiagnosticWorkspaceModal
         isOpen={showWorkspace}
-        onClose={() => setShowWorkspace(false)}
+        onClose={() => {
+          setShowWorkspace(false);
+          setSelectedSessionId(null);
+        }}
         machineId={selectedMachineId}
+        sessionId={selectedSessionId}
         machineName={machines.find((m) => m.id === selectedMachineId)?.name}
       />
     </div>
