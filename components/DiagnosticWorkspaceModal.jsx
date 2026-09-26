@@ -17,6 +17,11 @@ export default function DiagnosticWorkspaceModal({
   const [submitting, setSubmitting] = useState(false);
   const [initError, setInitError] = useState(null);
 
+  // Incident Resolution States
+  const [resolving, setResolving] = useState(false);
+  const [rootCauseInput, setRootCauseInput] = useState("");
+  const [showResolveConfirm, setShowResolveConfirm] = useState(false);
+
   // Mobile responsive helpers
   const [isMobile, setIsMobile] = useState(false);
   const [activeTab, setActiveTab] = useState("chat"); // 'chat' | 'state'
@@ -61,7 +66,7 @@ export default function DiagnosticWorkspaceModal({
 
         let currentSession = null;
 
-        // Branch A: Explicit sessionId passed (e.g. from Incident Audit Trail)
+        // Branch A: Explicit sessionId passed (from Incident Audit Trail)
         if (sessionId) {
           const { data: explicitSess, error: explicitErr } = await supabase
             .from("diagnostic_sessions")
@@ -237,6 +242,48 @@ export default function DiagnosticWorkspaceModal({
     handleSend(confirmationText, "task_result");
   };
 
+  // 4. Resolve session and archive root cause
+  const handleResolveSession = async () => {
+    if (!session?.id || resolving) return;
+
+    setResolving(true);
+    try {
+      const {
+        data: { session: authSession },
+      } = await supabase.auth.getSession();
+      const token = authSession?.access_token;
+
+      if (!token) {
+        throw new Error("Authentication token expired. Please refresh.");
+      }
+
+      const res = await fetch("/api/session/resolve", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          sessionId: session.id,
+          finalRootCause: rootCauseInput || session.active_hypothesis,
+        }),
+      });
+
+      const resData = await res.json();
+      if (!res.ok) {
+        throw new Error(resData.error || "Failed to resolve session");
+      }
+
+      setShowResolveConfirm(false);
+      onClose(); // Close modal so the dashboard updates back to standby
+    } catch (err) {
+      console.error("Resolution error:", err.message);
+      alert(err.message);
+    } finally {
+      setResolving(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   const isResolved = session?.status && session.status !== "active";
@@ -269,6 +316,7 @@ export default function DiagnosticWorkspaceModal({
           flexDirection: "column",
           overflow: "hidden",
           boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.7)",
+          position: "relative",
         }}
       >
         {/* Header */}
@@ -314,19 +362,45 @@ export default function DiagnosticWorkspaceModal({
                 : `Status: ${session?.status?.toUpperCase() || "ACTIVE"}`}
             </span>
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              backgroundColor: "transparent",
-              border: "none",
-              color: "#94A3B8",
-              fontSize: "1.4rem",
-              cursor: "pointer",
-              padding: "0.2rem 0.5rem",
-            }}
-          >
-            ✕
-          </button>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            {!isResolved && session?.id && (
+              <button
+                type="button"
+                onClick={() => {
+                  setRootCauseInput(session?.active_hypothesis || "");
+                  setShowResolveConfirm(true);
+                }}
+                style={{
+                  backgroundColor: "#065F46",
+                  color: "#A7F3D0",
+                  border: "1px solid #059669",
+                  padding: "0.35rem 0.75rem",
+                  borderRadius: "6px",
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                ✓ Resolve Incident
+              </button>
+            )}
+
+            <button
+              onClick={onClose}
+              style={{
+                backgroundColor: "transparent",
+                border: "none",
+                color: "#94A3B8",
+                fontSize: "1.4rem",
+                cursor: "pointer",
+                padding: "0.2rem 0.5rem",
+              }}
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {/* Mobile Tab Switcher */}
@@ -696,6 +770,110 @@ export default function DiagnosticWorkspaceModal({
             </div>
           )}
         </div>
+
+        {/* Resolve Incident Confirmation Dialog */}
+        {showResolveConfirm && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              backgroundColor: "rgba(0, 0, 0, 0.75)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1100,
+              padding: "1rem",
+              backdropFilter: "blur(4px)",
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: "#0F172A",
+                border: "1px solid #1E293B",
+                borderRadius: "10px",
+                padding: "1.5rem",
+                maxWidth: "480px",
+                width: "100%",
+                boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5)",
+              }}
+            >
+              <h3 style={{ margin: "0 0 0.5rem 0", color: "#F8FAFC", fontSize: "1.1rem" }}>
+                ✓ Resolve Diagnostic Session
+              </h3>
+              <p style={{ margin: "0 0 1rem 0", fontSize: "0.85rem", color: "#94A3B8", lineHeight: 1.4 }}>
+                This will close the active investigation, remove pending checklist items, and archive the diagnostic trail to the machine audit log.
+              </p>
+
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "0.75rem",
+                  color: "#FCD34D",
+                  marginBottom: "0.35rem",
+                  textTransform: "uppercase",
+                  fontWeight: 600,
+                }}
+              >
+                Final Confirmed Root Cause
+              </label>
+              <textarea
+                rows={3}
+                value={rootCauseInput}
+                onChange={(e) => setRootCauseInput(e.target.value)}
+                placeholder="State the confirmed component, wire, or parameter failure..."
+                style={{
+                  width: "100%",
+                  backgroundColor: "#0B0F17",
+                  border: "1px solid #334155",
+                  borderRadius: "6px",
+                  color: "#F8FAFC",
+                  padding: "0.6rem",
+                  fontSize: "0.85rem",
+                  boxSizing: "border-box",
+                  marginBottom: "1.25rem",
+                  outline: "none",
+                }}
+              />
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
+                <button
+                  type="button"
+                  onClick={() => setShowResolveConfirm(false)}
+                  disabled={resolving}
+                  style={{
+                    backgroundColor: "#1E293B",
+                    color: "#94A3B8",
+                    border: "1px solid #334155",
+                    padding: "0.5rem 1rem",
+                    borderRadius: "6px",
+                    fontSize: "0.85rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResolveSession}
+                  disabled={resolving}
+                  style={{
+                    backgroundColor: "#059669",
+                    color: "#FFFFFF",
+                    border: "none",
+                    padding: "0.5rem 1rem",
+                    borderRadius: "6px",
+                    fontSize: "0.85rem",
+                    fontWeight: 600,
+                    cursor: resolving ? "not-allowed" : "pointer",
+                    opacity: resolving ? 0.6 : 1,
+                  }}
+                >
+                  {resolving ? "Resolving..." : "Confirm & Archive"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
