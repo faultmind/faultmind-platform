@@ -237,11 +237,6 @@ export default function DiagnosticWorkspaceModal({
     }
   };
 
-  const handleTaskComplete = (task) => {
-    const confirmationText = `Verified task [${task.instruction}]. Result: Confirmed normal / passed.`;
-    handleSend(confirmationText, "task_result");
-  };
-
   // 4. Resolve session and archive root cause
   const handleResolveSession = async () => {
     if (!session?.id || resolving) return;
@@ -287,6 +282,9 @@ export default function DiagnosticWorkspaceModal({
   if (!isOpen) return null;
 
   const isResolved = session?.status && session.status !== "active";
+
+  // Identify index of the latest assistant message to show options
+  const latestAssistantIndex = events.map((e) => e.sender).lastIndexOf("assistant");
 
   return (
     <div
@@ -457,7 +455,7 @@ export default function DiagnosticWorkspaceModal({
             flexDirection: "column",
           }}
         >
-          {/* Panel 1: Dialogue */}
+          {/* Panel 1: Dialogue (Central Hub) */}
           {(!isMobile || activeTab === "chat") && (
             <div
               style={{
@@ -493,42 +491,95 @@ export default function DiagnosticWorkspaceModal({
                   </div>
                 )}
 
-                {events.map((ev) => {
+                {events.map((ev, index) => {
                   const isAssistant = ev.sender === "assistant";
+                  const isLatestAssistant = isAssistant && index === latestAssistantIndex;
+                  const suggestions = ev.metadata?.suggested_replies || [];
+
                   return (
                     <div
                       key={ev.id}
                       style={{
                         alignSelf: isAssistant ? "flex-start" : "flex-end",
                         maxWidth: isMobile ? "92%" : "85%",
-                        backgroundColor: isAssistant ? "#0F172A" : "#1D4ED8",
-                        border: isAssistant ? "1px solid #1E293B" : "none",
-                        color: "#F8FAFC",
-                        borderRadius: "8px",
-                        padding: "0.75rem 0.9rem",
-                        fontSize: "0.85rem",
-                        lineHeight: "1.5",
-                        whiteSpace: "pre-wrap",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.45rem",
                       }}
                     >
                       <div
                         style={{
-                          fontSize: "0.7rem",
-                          color: isAssistant ? "#38BDF8" : "#93C5FD",
-                          marginBottom: "0.25rem",
-                          fontWeight: 600,
+                          backgroundColor: isAssistant ? "#0F172A" : "#1D4ED8",
+                          border: isAssistant ? "1px solid #1E293B" : "none",
+                          color: "#F8FAFC",
+                          borderRadius: "8px",
+                          padding: "0.75rem 0.9rem",
+                          fontSize: "0.85rem",
+                          lineHeight: "1.5",
+                          whiteSpace: "pre-wrap",
                         }}
                       >
-                        {isAssistant ? "AI Co-Investigator" : "Field Engineer"}
+                        <div
+                          style={{
+                            fontSize: "0.7rem",
+                            color: isAssistant ? "#38BDF8" : "#93C5FD",
+                            marginBottom: "0.25rem",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {isAssistant ? "AI Co-Investigator" : "Field Engineer"}
+                        </div>
+                        {ev.content}
                       </div>
-                      {ev.content}
+
+                      {/* In-Chat Suggestion Pills (Rendered only on latest active turn) */}
+                      {isLatestAssistant && !isResolved && suggestions.length > 0 && (
+                        <div
+                          style={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: "0.4rem",
+                            marginTop: "0.2rem",
+                          }}
+                        >
+                          {suggestions.map((option, optIdx) => (
+                            <button
+                              key={optIdx}
+                              type="button"
+                              disabled={submitting}
+                              onClick={() => handleSend(option)}
+                              style={{
+                                backgroundColor: "#1E293B",
+                                border: "1px solid #38BDF8",
+                                color: "#38BDF8",
+                                borderRadius: "9999px",
+                                padding: "0.35rem 0.75rem",
+                                fontSize: "0.75rem",
+                                fontWeight: 500,
+                                cursor: submitting ? "not-allowed" : "pointer",
+                                transition: "all 0.15s ease",
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = "#38BDF8";
+                                e.currentTarget.style.color = "#0B0F17";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = "#1E293B";
+                                e.currentTarget.style.color = "#38BDF8";
+                              }}
+                            >
+                              {option}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
                 <div ref={chatEndRef} />
               </div>
 
-              {/* Chat Input Bar */}
+              {/* Chat Input Bar (Single Point of Interaction) */}
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -593,7 +644,7 @@ export default function DiagnosticWorkspaceModal({
             </div>
           )}
 
-          {/* Panel 2: Live State Board */}
+          {/* Panel 2: Live State Board (Clean Reference Panel) */}
           {(!isMobile || activeTab === "state") && (
             <div
               style={{
@@ -624,7 +675,7 @@ export default function DiagnosticWorkspaceModal({
                 </p>
               </div>
 
-              {/* Actionable Inspection Checklist */}
+              {/* Passive Inspection Guidance (Read-Only) */}
               <div
                 style={{
                   backgroundColor: "#0F172A",
@@ -634,14 +685,14 @@ export default function DiagnosticWorkspaceModal({
                 }}
               >
                 <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "0.75rem", color: "#38BDF8", textTransform: "uppercase" }}>
-                  📋 Next Physical Verification Steps
+                  📋 Current Inspection Focus
                 </h4>
                 {(!session?.pending_tasks || session.pending_tasks.length === 0) ? (
                   <span style={{ fontSize: "0.75rem", color: "#64748B" }}>
-                    No pending tests assigned.
+                    No specific tests pending.
                   </span>
                 ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
                     {session.pending_tasks.map((task, idx) => (
                       <div
                         key={task.id || idx}
@@ -649,38 +700,16 @@ export default function DiagnosticWorkspaceModal({
                           backgroundColor: "#0B0F17",
                           border: "1px solid #1E293B",
                           borderRadius: "6px",
-                          padding: "0.6rem 0.75rem",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: "0.5rem",
+                          padding: "0.55rem 0.75rem",
+                          fontSize: "0.8rem",
+                          color: "#E2E8F0",
+                          lineHeight: 1.4,
                         }}
                       >
-                        <span style={{ fontSize: "0.75rem", color: "#F1F5F9", lineHeight: 1.3 }}>
-                          {task.instruction}
+                        <span style={{ color: "#38BDF8", fontWeight: 600, marginRight: "0.4rem" }}>
+                          #{idx + 1}
                         </span>
-                        {!isResolved && (
-                          <button
-                            onClick={() => {
-                              handleTaskComplete(task);
-                              if (isMobile) setActiveTab("chat");
-                            }}
-                            disabled={submitting}
-                            style={{
-                              backgroundColor: "#065F46",
-                              border: "1px solid #059669",
-                              color: "#A7F3D0",
-                              borderRadius: "4px",
-                              fontSize: "0.7rem",
-                              padding: "0.3rem 0.55rem",
-                              cursor: "pointer",
-                              whiteSpace: "nowrap",
-                              flexShrink: 0,
-                            }}
-                          >
-                            ✓ Confirm
-                          </button>
-                        )}
+                        {task.instruction}
                       </div>
                     ))}
                   </div>
