@@ -163,7 +163,7 @@ export async function POST(request) {
       content: userInput,
     });
 
-    // 7. System prompt for co-investigative reasoning
+    // 7. System prompt for co-investigative reasoning with in-chat response options
     const systemPrompt = `You are a Principal Industrial Automation Diagnostic Engineer working live alongside a field technician.
 You are investigating a machine failure interactively.
 
@@ -185,11 +185,17 @@ DIAGNOSTIC PROTOCOL:
 3. Keep instructions concise and task-driven:
    - Tell the technician what specific wire, terminal, PLC LED, or sensor to inspect next.
    - Do not output generic advice; specify exact tag symbols (e.g. CPU_Input13) or physical addresses (e.g. I1.5).
-4. The field engineer retains sole authority to resolve or close the session. Never output session close directives.
+4. Provide 2 to 4 concise 'suggested_replies' (under 6 words each) that represent the most likely findings or outcomes of your directed check (e.g., ["Reads 24VDC (Normal)", "Reads 0V (No Power)", "Tested Open Circuit"]). These appear as quick one-tap reply pills for the technician.
+5. The field engineer retains sole authority to resolve or close the session. Never output session close directives.
 
 OUTPUT STRICT JSON ONLY:
 {
   "replyMessage": "Conversational reply to the engineer detailing analysis and directing next steps.",
+  "suggested_replies": [
+    "Short Option 1",
+    "Short Option 2",
+    "Short Option 3"
+  ],
   "statePatch": {
     "active_hypothesis": "Current working hypothesis",
     "add_verified_signals": [
@@ -224,17 +230,21 @@ OUTPUT STRICT JSON ONLY:
 
     const parsed = JSON.parse(completion.choices[0].message.content);
     const patch = parsed.statePatch || {};
+    const suggestedReplies = Array.isArray(parsed.suggested_replies) ? parsed.suggested_replies : [];
 
-    // 9. Persist assistant reply
+    // 9. Persist assistant reply with suggested_replies stored in metadata
     await supabaseAdmin.from("diagnostic_events").insert({
       session_id: activeSessionId,
       sender: "assistant",
       event_type: "message",
       content: parsed.replyMessage || "Analysis updated.",
-      metadata: patch,
+      metadata: {
+        ...patch,
+        suggested_replies: suggestedReplies,
+      },
     });
 
-    // 10. Merge state updates into diagnostic_sessions (session status is never overwritten here)
+    // 10. Merge state updates into diagnostic_sessions
     const mergedVerified = [
       ...(sessionData.verified_signals || []),
       ...(patch.add_verified_signals || []),
@@ -271,6 +281,7 @@ OUTPUT STRICT JSON ONLY:
     return NextResponse.json({
       success: true,
       replyMessage: parsed.replyMessage,
+      suggestedReplies,
       session: updatedSession || updatePayload,
     });
   } catch (err) {
