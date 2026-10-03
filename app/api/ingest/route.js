@@ -13,6 +13,7 @@ const openai = new OpenAI({
 
 export async function POST(request) {
   try {
+    // 1. Authenticate Request
     const authHeader = request.headers.get("authorization");
     if (!authHeader) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -29,7 +30,33 @@ export async function POST(request) {
       return NextResponse.json({ error: "Document ID required" }, { status: 400 });
     }
 
-    // 1. Fetch document record
+    // 2. Locate User's Workspace for Billing
+    const { data: memberData, error: memberErr } = await supabaseAdmin
+      .from("workspace_members")
+      .select("workspace_id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (memberErr || !memberData) {
+      return NextResponse.json({ error: "Workspace configuration error" }, { status: 400 });
+    }
+    const workspaceId = memberData.workspace_id;
+    const ingestionCost = 1; // 1 credit per file ingestion
+
+    // 3. ATOMIC CREDIT DEDUCTION (Toll Booth)
+    const { data: hasCredits, error: rpcError } = await supabaseAdmin.rpc("deduct_credits", {
+      p_workspace_id: workspaceId,
+      p_amount: ingestionCost,
+      p_description: `AI Ingestion for Document: ${documentId}`,
+    });
+
+    if (rpcError || !hasCredits) {
+      return NextResponse.json({ 
+        error: "Insufficient credits. Please upgrade your workspace plan to ingest more files." 
+      }, { status: 402 });
+    }
+
+    // 4. Fetch document record
     const { data: doc, error: fetchErr } = await supabaseAdmin
       .from("machine_documents")
       .select("*")
@@ -47,7 +74,7 @@ export async function POST(request) {
       .update({ ocr_status: "processing" })
       .eq("id", doc.id);
 
-    // 2. Download file from Supabase Storage
+    // 5. Download file from Supabase Storage
     const { data: fileBlob, error: dlError } = await supabaseAdmin.storage
       .from("machine-docs")
       .download(doc.file_path);
@@ -58,73 +85,74 @@ export async function POST(request) {
     }
 
     const isImage = doc.mime_type?.startsWith("image/") || /\.(png|jpe?g|webp|bmp)$/i.test(doc.file_name);
+    let parsedData = null;
 
-    if (!isImage) {
-      // Plain text or manual fallback
-      const text = await fileBlob.text();
-      await supabaseAdmin
-        .from("machine_documents")
-        .update({
-          extracted_text: text.slice(0, 10000),
-          ocr_status: "completed",
-        })
-        .eq("id", doc.id);
+    // 6. PROCESS BASED ON FILE TYPE
+    if (isImage) {
+      // --- IMAGE OCR PIPELINE (Schematics / Electrical Drawings) ---
+      const arrayBuffer = await fileBlob.arrayBuffer();
+      const base64Data = Buffer.from(arrayBuffer).toString("base64");
+      const mime = doc.mime_type?.startsWith("image/") ? doc.mime_type : "image/jpeg";
 
-      return NextResponse.json({ success: true, mode: "text" });
+      const imagePrompt = `You are an automated industrial schematic and PLC logic parser.
+      Extract every technical detail from this image with zero hallucination.
+      TARGET EXTRACTION:
+      1. Network / Rung Number (if visible).
+      2. Ladder Logic Elements: Trace all contacts (NO, NC), timers, comparators, coils, set/reset instructions.
+      3. Symbol Table: Extract EVERY row exactly as displayed into structured JSON.
+      RETURN STRICT JSON ONLY:
+      {
+        "network_number": "42 or null",
+        "circuit_summary": "Concise technical summary of the rung function",
+        "tags": [ {"symbol": "CPU_Input13", "address": "I1.5", "comment": "Outside Bar Position 3", "type": "input", "state": "NC"} ],
+        "raw_readable_text": "Plain text summary of all comments and addresses for full-text search indexing"
+      }`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        response_format: { type: "json_object" },
+        temperature: 0.0,
+        messages: [
+          { role: "system", content: imagePrompt },
+          { role: "user", content: [{ type: "image_url", image_url: { url: `data:${mime};base64,${base64Data}`, detail: "high" } }] }
+        ],
+      });
+      parsedData = JSON.parse(completion.choices[0].message.content);
+
+    } else {
+      // --- TEXT PIPELINE (.awl, .xml, .scl, .txt) ---
+      const textContent = await fileBlob.text();
+      
+      const textPrompt = `You are an expert Siemens and Allen-Bradley industrial automation engineer.
+      Parse the following PLC code export (.awl, .xml, etc.) and extract the structured logic and symbols.
+      TARGET EXTRACTION:
+      1. Logic Blocks / Network structure.
+      2. Tag mapping (Addresses to Symbols and Comments).
+      RETURN STRICT JSON ONLY:
+      {
+        "circuit_summary": "Concise technical summary of the logic provided",
+        "tags": [ {"symbol": "MotorStart", "address": "Q0.1", "comment": "Main Conveyor Motor", "type": "output"} ],
+        "raw_readable_text": "Plain text summary of all comments, blocks, and addresses for full-text search indexing"
+      }`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini", // Using gpt-4o-mini for fast, cheap, highly-accurate text extraction
+        response_format: { type: "json_object" },
+        temperature: 0.0,
+        messages: [
+          { role: "system", content: textPrompt },
+          { role: "user", content: textContent.slice(0, 80000) } // Cap characters to avoid massive token limit overages on huge files
+        ],
+      });
+      parsedData = JSON.parse(completion.choices[0].message.content);
     }
 
-    // 3. Process image with GPT-4o OCR Worker
-    const arrayBuffer = await fileBlob.arrayBuffer();
-    const base64Data = Buffer.from(arrayBuffer).toString("base64");
-    const mime = doc.mime_type?.startsWith("image/") ? doc.mime_type : "image/jpeg";
-
-    const extractionPrompt = `You are an automated industrial schematic and PLC logic parser.
-Extract every technical detail from this image with zero hallucination.
-
-TARGET EXTRACTION:
-1. Network / Rung Number (if visible).
-2. Ladder Logic Elements: Trace all contacts (NO, NC), timers, comparators, coils, set/reset instructions.
-3. Symbol Table: Extract EVERY row exactly as displayed into structured JSON:
-   - symbol
-   - address (e.g., I1.5, Q0.6, M9.1, T101)
-   - comment (verbatim text)
-
-RETURN STRICT JSON ONLY:
-{
-  "network_number": "42 or null",
-  "circuit_summary": "Concise technical summary of the rung function",
-  "tags": [
-    {"symbol": "CPU_Input13", "address": "I1.5", "comment": "Outside Bar Position 3", "type": "input", "state": "NC"}
-  ],
-  "raw_readable_text": "Plain text summary of all comments and addresses for full-text search indexing"
-}`;
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      response_format: { type: "json_object" },
-      temperature: 0.0,
-      messages: [
-        { role: "system", content: extractionPrompt },
-        {
-          role: "user",
-          content: [
-            {
-              type: "image_url",
-              image_url: { url: `data:${mime};base64,${base64Data}`, detail: "high" },
-            },
-          ],
-        },
-      ],
-    });
-
-    const parsedData = JSON.parse(completion.choices[0].message.content);
-
-    // 4. Save extracted knowledge to machine_documents
+    // 7. Save extracted knowledge to machine_documents
     const { error: updateErr } = await supabaseAdmin
       .from("machine_documents")
       .update({
         ocr_status: "completed",
-        extracted_text: parsedData.raw_readable_text || JSON.stringify(parsedData),
+        extracted_text: parsedData.raw_readable_text || "No readable text extracted",
         structured_data: parsedData,
       })
       .eq("id", doc.id);
@@ -132,6 +160,7 @@ RETURN STRICT JSON ONLY:
     if (updateErr) throw updateErr;
 
     return NextResponse.json({ success: true, data: parsedData });
+
   } catch (err) {
     console.error("Ingestion Worker Error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
