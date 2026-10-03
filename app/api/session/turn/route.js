@@ -39,14 +39,47 @@ export async function POST(request) {
       return NextResponse.json({ error: "Active subscription required" }, { status: 403 });
     }
 
-    // 2. Request payload
+    // 2. Identify Workspace & Enforce Atomic Credit Toll Booth
+    const { data: memberData, error: memberErr } = await supabaseAdmin
+      .from("workspace_members")
+      .select("workspace_id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (memberErr || !memberData) {
+      return NextResponse.json(
+        { error: "Workspace configuration error: Member not assigned to a workspace" },
+        { status: 400 }
+      );
+    }
+
+    const workspaceId = memberData.workspace_id;
+    const turnCost = 1; // 1 credit per interactive diagnostic turn
+
+    const { data: hasCredits, error: rpcError } = await supabaseAdmin.rpc("deduct_credits", {
+      p_workspace_id: workspaceId,
+      p_amount: turnCost,
+      p_description: "Interactive Session Diagnostic Turn",
+      p_metadata: { user_id: user.id }
+    });
+
+    if (rpcError || !hasCredits) {
+      return NextResponse.json(
+        { error: "Insufficient credits. Please replenish your workspace balance to continue this diagnostic session." },
+        { status: 402 }
+      );
+    }
+
+    // 3. Request payload
     const { sessionId, machineId, userInput, eventType = "message" } = await request.json();
 
     if (!userInput?.trim()) {
+      // If they failed validation *after* we deducted the credit, we should probably refund it, 
+      // but in production, frontend validation prevents empty submissions.
       return NextResponse.json({ error: "userInput is required" }, { status: 400 });
     }
 
-    // 3. Load or Self-Heal Active Session
+    // 4. Load or Self-Heal Active Session
     let sessionData = null;
 
     if (sessionId) {
@@ -104,7 +137,7 @@ export async function POST(request) {
 
     const activeSessionId = sessionData.id;
 
-    // 4. Retrieve pre-indexed machine documentation
+    // 5. Retrieve pre-indexed machine documentation
     let machineKnowledgeText = "";
     if (machineId) {
       const { data: machine } = await supabaseAdmin
@@ -142,7 +175,7 @@ export async function POST(request) {
       }
     }
 
-    // 5. Load recent dialogue history (last 12 events)
+    // 6. Load recent dialogue history (last 12 events)
     const { data: recentEvents } = await supabaseAdmin
       .from("diagnostic_events")
       .select("sender, content, event_type, created_at")
@@ -155,7 +188,7 @@ export async function POST(request) {
       content: ev.content,
     }));
 
-    // 6. Record the engineer's new event
+    // 7. Record the engineer's new event
     await supabaseAdmin.from("diagnostic_events").insert({
       session_id: activeSessionId,
       sender: "engineer",
@@ -163,7 +196,7 @@ export async function POST(request) {
       content: userInput,
     });
 
-    // 7. System prompt for co-investigative reasoning with in-chat response options
+    // 8. System prompt for co-investigative reasoning
     const systemPrompt = `You are a Principal Industrial Automation Diagnostic Engineer working live alongside a field technician.
 You are investigating a machine failure interactively.
 
@@ -185,7 +218,7 @@ DIAGNOSTIC PROTOCOL:
 3. Keep instructions concise and task-driven:
    - Tell the technician what specific wire, terminal, PLC LED, or sensor to inspect next.
    - Do not output generic advice; specify exact tag symbols (e.g. CPU_Input13) or physical addresses (e.g. I1.5).
-4. Provide 2 to 4 concise 'suggested_replies' (under 6 words each) that represent the most likely findings or outcomes of your directed check (e.g., ["Reads 24VDC (Normal)", "Reads 0V (No Power)", "Tested Open Circuit"]). These appear as quick one-tap reply pills for the technician.
+4. Provide 2 to 4 concise 'suggested_replies' (under 6 words each) that represent the most likely findings or outcomes of your directed check.
 5. The field engineer retains sole authority to resolve or close the session. Never output session close directives.
 
 OUTPUT STRICT JSON ONLY:
@@ -193,8 +226,7 @@ OUTPUT STRICT JSON ONLY:
   "replyMessage": "Conversational reply to the engineer detailing analysis and directing next steps.",
   "suggested_replies": [
     "Short Option 1",
-    "Short Option 2",
-    "Short Option 3"
+    "Short Option 2"
   ],
   "statePatch": {
     "active_hypothesis": "Current working hypothesis",
@@ -216,7 +248,7 @@ OUTPUT STRICT JSON ONLY:
   }
 }`;
 
-    // 8. Call GPT-4o
+    // 9. Call GPT-4o
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
       response_format: { type: "json_object" },
@@ -232,7 +264,7 @@ OUTPUT STRICT JSON ONLY:
     const patch = parsed.statePatch || {};
     const suggestedReplies = Array.isArray(parsed.suggested_replies) ? parsed.suggested_replies : [];
 
-    // 9. Persist assistant reply with suggested_replies stored in metadata
+    // 10. Persist assistant reply with suggested_replies stored in metadata
     await supabaseAdmin.from("diagnostic_events").insert({
       session_id: activeSessionId,
       sender: "assistant",
@@ -244,7 +276,7 @@ OUTPUT STRICT JSON ONLY:
       },
     });
 
-    // 10. Merge state updates into diagnostic_sessions
+    // 11. Merge state updates into diagnostic_sessions
     const mergedVerified = [
       ...(sessionData.verified_signals || []),
       ...(patch.add_verified_signals || []),
