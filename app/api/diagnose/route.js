@@ -34,7 +34,7 @@ export async function POST(request) {
       );
     }
 
-    // 1. Verify active subscription
+    // 1. Verify active subscription status
     const { data: subData, error: subError } = await supabaseAdmin
       .from("subscriptions")
       .select("status")
@@ -48,7 +48,38 @@ export async function POST(request) {
       );
     }
 
-    // 2. Parse request payload
+    // 2. Identify Workspace & Enforce Atomic Credit Toll Booth
+    const { data: memberData, error: memberErr } = await supabaseAdmin
+      .from("workspace_members")
+      .select("workspace_id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (memberErr || !memberData) {
+      return NextResponse.json(
+        { error: "Workspace configuration error: Member not assigned to a workspace" },
+        { status: 400 }
+      );
+    }
+
+    const workspaceId = memberData.workspace_id;
+    const diagnosticCost = 2; // 2 credits per full GPT-4o diagnostic run
+
+    const { data: hasCredits, error: rpcError } = await supabaseAdmin.rpc("deduct_credits", {
+      p_workspace_id: workspaceId,
+      p_amount: diagnosticCost,
+      p_description: "Diagnostic Reasoning Engine (GPT-4o)",
+      p_metadata: { user_id: user.id }
+    });
+
+    if (rpcError || !hasCredits) {
+      return NextResponse.json(
+        { error: "Insufficient credits. Please replenish your workspace balance to run diagnostics." },
+        { status: 402 }
+      );
+    }
+
+    // 3. Parse request payload
     const { faultQuery, locale = "en", machineId = null } = await request.json();
 
     if (!faultQuery || faultQuery.trim().length === 0) {
@@ -65,7 +96,7 @@ export async function POST(request) {
     };
     const fallbackLang = fallbackLanguageMap[locale] || "English";
 
-    // 3. Retrieve Machine Details & Attached Documentation
+    // 4. Retrieve Machine Details & Attached Documentation
     let machineContextText = "";
     const imagePayloads = [];
 
@@ -80,8 +111,7 @@ export async function POST(request) {
         machineContextText += `Target Equipment: ${machine.name}\nController/Model: ${machine.brand_model || "Not specified"}\n`;
       }
 
-      // Fetch attached documents for this machine
-      const { data: docs, error: dErr } = await supabaseAdmin
+      const { data: docs } = await supabaseAdmin
         .from("machine_documents")
         .select("id, file_name, file_path, mime_type, file_size_bytes, ocr_status, structured_data, extracted_text")
         .eq("machine_id", machineId)
@@ -91,14 +121,10 @@ export async function POST(request) {
       if (docs && docs.length > 0) {
         machineContextText += `Attached Machine Documentation (${docs.length} files available):\n`;
 
-        let structuredKnowledgeFound = false;
-
         for (const doc of docs) {
           const fileSizeKb = Math.round((Number(doc.file_size_bytes) || 0) / 1024);
 
-          // A. If pre-indexed structured data exists from ingestion worker, inject directly as text
           if (doc.structured_data && typeof doc.structured_data === "object" && Object.keys(doc.structured_data).length > 0) {
-            structuredKnowledgeFound = true;
             const data = doc.structured_data;
             machineContextText += `\n[Indexed Document: ${doc.file_name} | Network: ${data.network_number || "N/A"}]\n`;
             if (data.circuit_summary) {
@@ -116,7 +142,6 @@ export async function POST(request) {
             machineContextText += `- ${doc.file_name} (${fileSizeKb} KB)\n`;
           }
 
-          // B. Visual fallback: If not yet indexed, pass images directly into the vision pipeline
           const isImage =
             doc.mime_type?.startsWith("image/") ||
             /\.(png|jpe?g|webp|bmp)$/i.test(doc.file_name);
@@ -153,7 +178,7 @@ export async function POST(request) {
       }
     }
 
-    // 4. Engineering System Prompt
+    // 5. Engineering System Prompt
     const systemPrompt = `You are a Principal Industrial Automation and PLC Systems Diagnostic Engineer.
 You have native expertise in industrial field engineering, electrical schematics, and PLC programming (Siemens TIA Portal/STEP 7, Delta, Allen-Bradley, Beckhoff, Omron).
 
@@ -188,7 +213,7 @@ OUTPUT SCHEMA (Strict JSON only):
   "sectionTwoItems": ["Action/Function 1", "Action/Function 2"]
 }`;
 
-    // 5. Build multimodal payload
+    // 6. Build multimodal payload
     let promptText = `Query: ${faultQuery}`;
     if (machineContextText) {
       promptText += `\n\n--- MACHINE SPECIFICATION & ATTACHED DOCUMENTS ---\n${machineContextText}`;
@@ -199,7 +224,7 @@ OUTPUT SCHEMA (Strict JSON only):
       userContent = [...userContent, ...imagePayloads];
     }
 
-    // 6. Call Flagship GPT-4o Model
+    // 7. Invoke Diagnostic Reasoning Engine
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       response_format: { type: "json_object" },
@@ -221,8 +246,8 @@ OUTPUT SCHEMA (Strict JSON only):
       sectionTwoItems: parsedContent.sectionTwoItems || [],
     };
 
-    // 7. Persist to database
-    const { data: insertedLog, error: logError } = await supabaseAdmin
+    // 8. Persist to audit log
+    const { error: logError } = await supabaseAdmin
       .from("diagnostic_logs")
       .insert({
         user_id: user.id,
@@ -235,9 +260,7 @@ OUTPUT SCHEMA (Strict JSON only):
         section_two_title: diagnosticPayload.sectionTwoTitle || "Recommendations",
         section_one_items: diagnosticPayload.sectionOneItems || [],
         section_two_items: diagnosticPayload.sectionTwoItems || [],
-      })
-      .select()
-      .single();
+      });
 
     if (logError) {
       console.error("DIAGNOSTIC LOG INSERT FAILED:", logError);
