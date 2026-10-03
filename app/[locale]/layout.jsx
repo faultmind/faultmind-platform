@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import Script from "next/script";
 import { routing } from "../../i18n/routing";
 import "../../styles/globals.css";
+import CreditBadge from "@/components/CreditBadge";
 
 export const metadata = {
   title: "FaultMind - Industrial Diagnostics & AI Troubleshooting",
@@ -36,6 +37,12 @@ export default async function LocaleLayout({ children, params }) {
       </head>
       <body style={{ margin: 0, padding: 0, backgroundColor: "#0B0F19" }}>
         <NextIntlClientProvider locale={locale} messages={messages}>
+          
+          {/* Global UI Layer */}
+          <header className="absolute top-4 end-4 z-50">
+            <CreditBadge />
+          </header>
+
           {children}
         </NextIntlClientProvider>
       </body>
