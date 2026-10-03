@@ -11,8 +11,11 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+const DIAGNOSTIC_COST = 2; // 2 credits per full GPT-4o diagnostic run
+
 export async function POST(request) {
   try {
+    // 1. Authenticate Request
     const authHeader = request.headers.get("authorization");
     if (!authHeader) {
       return NextResponse.json(
@@ -34,21 +37,7 @@ export async function POST(request) {
       );
     }
 
-    // 1. Verify active subscription status
-    const { data: subData, error: subError } = await supabaseAdmin
-      .from("subscriptions")
-      .select("status")
-      .eq("user_id", user.id)
-      .single();
-
-    if (subError || subData?.status !== "active") {
-      return NextResponse.json(
-        { error: "Forbidden: Active subscription required" },
-        { status: 403 }
-      );
-    }
-
-    // 2. Identify Workspace & Enforce Atomic Credit Toll Booth
+    // 2. Identify Workspace & Verify Available Credits Upfront
     const { data: memberData, error: memberErr } = await supabaseAdmin
       .from("workspace_members")
       .select("workspace_id")
@@ -63,23 +52,29 @@ export async function POST(request) {
     }
 
     const workspaceId = memberData.workspace_id;
-    const diagnosticCost = 2; // 2 credits per full GPT-4o diagnostic run
 
-    const { data: hasCredits, error: rpcError } = await supabaseAdmin.rpc("deduct_credits", {
-      p_workspace_id: workspaceId,
-      p_amount: diagnosticCost,
-      p_description: "Diagnostic Reasoning Engine (GPT-4o)",
-      p_metadata: { user_id: user.id }
-    });
+    // Check workspace credit balance before performing compute
+    const { data: workspace, error: workspaceErr } = await supabaseAdmin
+      .from("workspaces")
+      .select("available_credits")
+      .eq("id", workspaceId)
+      .single();
 
-    if (rpcError || !hasCredits) {
+    if (workspaceErr || !workspace) {
       return NextResponse.json(
-        { error: "Insufficient credits. Please replenish your workspace balance to run diagnostics." },
+        { error: "Could not retrieve workspace credit balance" },
+        { status: 400 }
+      );
+    }
+
+    if ((Number(workspace.available_credits) || 0) < DIAGNOSTIC_COST) {
+      return NextResponse.json(
+        { error: `Insufficient credits. Diagnosis requires ${DIAGNOSTIC_COST} credits. Please top up your balance.` },
         { status: 402 }
       );
     }
 
-    // 3. Parse request payload
+    // 3. Parse Request Payload
     const { faultQuery, locale = "en", machineId = null } = await request.json();
 
     if (!faultQuery || faultQuery.trim().length === 0) {
@@ -96,9 +91,8 @@ export async function POST(request) {
     };
     const fallbackLang = fallbackLanguageMap[locale] || "English";
 
-    // 4. Retrieve Machine Details & Attached Documentation
+    // 4. Retrieve Machine Details & Pre-Indexed Structured Documentation
     let machineContextText = "";
-    const imagePayloads = [];
 
     if (machineId) {
       const { data: machine } = await supabaseAdmin
@@ -113,13 +107,13 @@ export async function POST(request) {
 
       const { data: docs } = await supabaseAdmin
         .from("machine_documents")
-        .select("id, file_name, file_path, mime_type, file_size_bytes, ocr_status, structured_data, extracted_text")
+        .select("file_name, file_size_bytes, structured_data, extracted_text")
         .eq("machine_id", machineId)
         .eq("user_id", user.id)
         .order("created_at", { ascending: true });
 
       if (docs && docs.length > 0) {
-        machineContextText += `Attached Machine Documentation (${docs.length} files available):\n`;
+        machineContextText += `Attached Machine Documentation (${docs.length} indexed files available):\n`;
 
         for (const doc of docs) {
           const fileSizeKb = Math.round((Number(doc.file_size_bytes) || 0) / 1024);
@@ -137,42 +131,9 @@ export async function POST(request) {
               });
             }
           } else if (doc.extracted_text) {
-            machineContextText += `\n[Text Document: ${doc.file_name}]\n${doc.extracted_text.slice(0, 1500)}\n`;
+            machineContextText += `\n[Text Document: ${doc.file_name}]\n${doc.extracted_text.slice(0, 3000)}\n`;
           } else {
-            machineContextText += `- ${doc.file_name} (${fileSizeKb} KB)\n`;
-          }
-
-          const isImage =
-            doc.mime_type?.startsWith("image/") ||
-            /\.(png|jpe?g|webp|bmp)$/i.test(doc.file_name);
-
-          if (isImage && imagePayloads.length < 20) {
-            try {
-              const { data: fileBlob, error: dlError } = await supabaseAdmin.storage
-                .from("machine-docs")
-                .download(doc.file_path);
-
-              if (!dlError && fileBlob) {
-                const arrayBuffer = await fileBlob.arrayBuffer();
-                const base64Data = Buffer.from(arrayBuffer).toString("base64");
-                const mime =
-                  doc.mime_type && doc.mime_type.startsWith("image/")
-                    ? doc.mime_type
-                    : doc.file_name.endsWith(".png")
-                    ? "image/png"
-                    : "image/jpeg";
-
-                imagePayloads.push({
-                  type: "image_url",
-                  image_url: {
-                    url: `data:${mime};base64,${base64Data}`,
-                    detail: "high",
-                  },
-                });
-              }
-            } catch (err) {
-              console.warn(`Storage download failed for ${doc.file_name}:`, err.message);
-            }
+            machineContextText += `- ${doc.file_name} (${fileSizeKb} KB - pending indexing)\n`;
           }
         }
       }
@@ -187,14 +148,11 @@ When evaluating user queries:
    - When pre-indexed symbol tables or network data are provided in the machine specification, treat them as authoritative ground truth.
    - Distinctly differentiate CPU_Input vs CPU_Output and physical addresses (I vs Q, e.g. I1.5 vs Q1.5).
    - Match the exact symbol queried and report its absolute address and comment verbatim.
-2. SPATIAL ALIGNMENT (FOR ATTACHED SCHEMATIC IMAGES):
-   - Tables with columns like "Symbol | Address | Comment" must be aligned horizontally with extreme care.
-   - Do NOT mix adjacent rows. Ensure the Comment matches the EXACT row of the requested Symbol.
-3. LADDER LOGIC CIRCUIT TRACING:
+2. LADDER LOGIC CIRCUIT TRACING:
    - Identify the network number (e.g. Network 42).
    - Trace the branch: identify if contacts are normally open (NO) or normally closed (NC / negated).
    - Identify what output coil, memory flag, or timer it enables, seals-in, or interlocks.
-4. SCRATCHPAD REASONING:
+3. SCRATCHPAD REASONING:
    - In your JSON response, first fill the "visualScratchpad" key with the exact raw row you extracted (Symbol, Address, Comment verbatim) before formulating the final explanation.
 
 LANGUAGE & FORMAT:
@@ -213,15 +171,10 @@ OUTPUT SCHEMA (Strict JSON only):
   "sectionTwoItems": ["Action/Function 1", "Action/Function 2"]
 }`;
 
-    // 6. Build multimodal payload
+    // 6. Build Diagnostic Payload
     let promptText = `Query: ${faultQuery}`;
     if (machineContextText) {
       promptText += `\n\n--- MACHINE SPECIFICATION & ATTACHED DOCUMENTS ---\n${machineContextText}`;
-    }
-
-    let userContent = [{ type: "text", text: promptText }];
-    if (imagePayloads.length > 0) {
-      userContent = [...userContent, ...imagePayloads];
     }
 
     // 7. Invoke Diagnostic Reasoning Engine
@@ -230,12 +183,24 @@ OUTPUT SCHEMA (Strict JSON only):
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: userContent },
+        { role: "user", content: promptText },
       ],
       temperature: 0.1,
     });
 
     const parsedContent = JSON.parse(response.choices[0].message.content);
+
+    // 8. Atomic Credit Deduction (Only Runs After Successful AI Execution)
+    const { data: deductionSuccess, error: rpcError } = await supabaseAdmin.rpc("deduct_credits", {
+      p_workspace_id: workspaceId,
+      p_amount: DIAGNOSTIC_COST,
+      p_description: "Diagnostic Reasoning Engine (GPT-4o)",
+      p_metadata: { user_id: user.id }
+    });
+
+    if (rpcError || !deductionSuccess) {
+      console.error("Credit deduction failed post-generation:", rpcError);
+    }
 
     const diagnosticPayload = {
       direction: parsedContent.direction || "ltr",
@@ -246,7 +211,7 @@ OUTPUT SCHEMA (Strict JSON only):
       sectionTwoItems: parsedContent.sectionTwoItems || [],
     };
 
-    // 8. Persist to audit log
+    // 9. Persist to Audit Log
     const { error: logError } = await supabaseAdmin
       .from("diagnostic_logs")
       .insert({
