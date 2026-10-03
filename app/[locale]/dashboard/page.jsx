@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
 import { supabase } from "../../../lib/supabaseClient";
 import DiagnosticWorkspaceModal from "../../../components/DiagnosticWorkspaceModal";
+import CreditBadge from "../../../components/CreditBadge";
 
 function formatBytes(bytes) {
   if (!bytes || bytes === 0) return "0 KB";
@@ -405,20 +406,25 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <button
-          onClick={handleSignOut}
-          style={{
-            backgroundColor: "#1E293B",
-            color: "#F8FAFC",
-            border: "1px solid #334155",
-            padding: "0.5rem 1rem",
-            borderRadius: "6px",
-            cursor: "pointer",
-            fontSize: "0.875rem",
-          }}
-        >
-          {t("signOut")}
-        </button>
+        {/* User Controls Container */}
+        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+          <CreditBadge />
+          
+          <button
+            onClick={handleSignOut}
+            style={{
+              backgroundColor: "#1E293B",
+              color: "#F8FAFC",
+              border: "1px solid #334155",
+              padding: "0.5rem 1rem",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontSize: "0.875rem",
+            }}
+          >
+            {t("signOut")}
+          </button>
+        </div>
       </header>
 
       {/* Main Grid Layout */}
