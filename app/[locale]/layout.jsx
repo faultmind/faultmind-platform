@@ -49,3 +49,4 @@ export default async function LocaleLayout({ children, params }) {
     </html>
   );
 }
+// Trigger new build
