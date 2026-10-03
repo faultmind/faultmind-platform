@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import Script from "next/script";
 import { routing } from "../../i18n/routing";
 import "../../styles/globals.css";
-import CreditBadge from "@/components/CreditBadge";
+import CreditBadge from "../../components/CreditBadge";
 
 export const metadata = {
   title: "FaultMind - Industrial Diagnostics & AI Troubleshooting",
