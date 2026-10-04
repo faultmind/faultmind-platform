@@ -5,7 +5,7 @@ import { Settings, Wrench, Package, Plus, Cpu } from 'lucide-react';
 
 export default async function MachinesLayout({ children }) {
   // 1. Initialize Supabase Server Client
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
