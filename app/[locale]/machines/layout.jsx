@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
@@ -7,7 +9,6 @@ export default async function MachinesLayout({ children, params }) {
   const resolvedParams = await params;
   const locale = resolvedParams?.locale || 'en';
 
-  // 1. Initialize Supabase Server Client with full read/write cookie handlers
   const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -30,17 +31,15 @@ export default async function MachinesLayout({ children, params }) {
     }
   );
 
-  // 2. Fetch the user's machines
   const { data: machines, error } = await supabase
     .from('machines')
     .select('id, name, brand_model')
     .order('created_at', { ascending: false });
 
-  // 3. Server-side log for Vercel Runtime Logs
   if (error) {
-    console.error("DEBUG - Machines fetch error:", error.message, error.details);
+    console.error("Vercel Server Fetch Error:", error.message);
   } else {
-    console.log("DEBUG - Machines fetched count:", machines?.length);
+    console.log("Vercel Server Fetched Machines:", machines?.length);
   }
 
   return (
