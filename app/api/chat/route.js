@@ -45,8 +45,12 @@ export async function POST(req) {
       messages,
     });
 
-    // 5. Return the stream to the Next.js client
-    return result.toDataStreamResponse();
+    // 5. Return the stream to the Next.js client safely (handles version differences in the ai SDK)
+    if (typeof result.toDataStreamResponse === 'function') {
+      return result.toDataStreamResponse();
+    } else {
+      return result.toAIStreamResponse();
+    }
     
   } catch (error) {
     console.error("FaultMind Chat API Error:", error);
