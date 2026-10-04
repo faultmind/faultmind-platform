@@ -8,8 +8,11 @@ export default function MachineHubClient({ machine }) {
   const [activeTab, setActiveTab] = useState('chat');
   const chatBottomRef = useRef(null);
 
-  // 1. Strictly use the standard SDK functions
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
+  // 1. WE manage the text box state, NOT the AI SDK. This prevents freezing.
+  const [text, setText] = useState('');
+
+  // 2. Only take the message feed and the append function from the SDK.
+  const { messages, append, isLoading } = useChat({
     api: '/api/chat',
     body: {
       machineId: machine?.id || 'unknown',
@@ -30,14 +33,22 @@ export default function MachineHubClient({ machine }) {
     { id: 'parts', label: 'Spare Parts', icon: Package },
   ];
 
-  // 2. Trigger native form submission on Enter
+  // 3. Custom submit function that bypasses the SDK's form handler
+  const handleSend = (e) => {
+    if (e) e.preventDefault();
+    if (!text.trim() || isLoading) return;
+    
+    // Send message to backend
+    append({ role: 'user', content: text });
+    
+    // Clear our local text box
+    setText('');
+  };
+
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (input && input.trim() && !isLoading) {
-        const form = e.target.closest('form');
-        if (form) form.requestSubmit();
-      }
+      handleSend(e);
     }
   };
 
@@ -135,19 +146,20 @@ export default function MachineHubClient({ machine }) {
             </div>
 
             <div className="p-6 shrink-0 bg-[#0F172A]">
-              {/* 3. Wrap in standard form using handleSubmit */}
+              {/* 4. Use standard form submission calling our custom handleSend */}
               <form 
-                onSubmit={handleSubmit}
+                onSubmit={handleSend}
                 className="relative flex items-end bg-[#1E293B] border border-slate-700 rounded-2xl p-2 shadow-lg focus-within:border-slate-500 transition-colors"
               >
                 <button type="button" className="p-3 text-slate-400 hover:text-[#D9FF00] transition-colors rounded-xl hover:bg-slate-800">
                   <Paperclip size={20} />
                 </button>
                 
+                {/* 5. Pure React state. No SDK magic here. */}
                 <textarea 
                   rows={1}
-                  value={input}
-                  onChange={handleInputChange}
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Describe the fault, upload a schematic, or paste PLC logic..."
                   className="w-full max-h-48 bg-transparent text-slate-200 placeholder-slate-500 resize-none outline-none py-3 px-2 font-sans"
@@ -159,7 +171,7 @@ export default function MachineHubClient({ machine }) {
                   </button>
                   <button 
                     type="submit"
-                    disabled={!input || !input.trim() || isLoading}
+                    disabled={!text.trim() || isLoading}
                     className="p-2.5 bg-[#D9FF00] hover:bg-[#c2e600] disabled:bg-slate-700 disabled:text-slate-500 text-slate-900 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
                   >
                     <Send size={18} className="translate-x-0.5" />
