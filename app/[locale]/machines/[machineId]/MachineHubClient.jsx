@@ -6,10 +6,14 @@ import { Paperclip, Mic, Send, Activity, FileText, Wrench, Package, MessageSquar
 
 export default function MachineHubClient({ machine }) {
   const [activeTab, setActiveTab] = useState('chat');
+  
+  // 1. Manually manage the input state since the new SDK decoupled it
+  const [input, setInput] = useState(''); 
+  
   const chatBottomRef = useRef(null);
 
-  // 1. Wire up Vercel AI SDK
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
+  // 2. Extract only what the new SDK provides: messages, append, and isLoading
+  const { messages, append, isLoading } = useChat({
     api: '/api/chat',
     body: {
       machineId: machine?.id,
@@ -30,13 +34,23 @@ export default function MachineHubClient({ machine }) {
     { id: 'parts', label: 'Spare Parts', icon: Package },
   ];
 
+  // 3. Custom manual submit handler
+  const handleManualSubmit = (e) => {
+    e.preventDefault();
+    if (!input.trim() || isLoading) return;
+    
+    // Push the message directly to the Vercel AI SDK
+    append({ role: 'user', content: input });
+    
+    // Clear the input box immediately
+    setInput('');
+  };
+
   // Allow Enter key to submit (Shift+Enter for newline)
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (input.trim() && !isLoading) {
-        handleSubmit(e);
-      }
+      handleManualSubmit(e);
     }
   };
 
@@ -150,7 +164,7 @@ export default function MachineHubClient({ machine }) {
             {/* Chat Input Form */}
             <div className="p-6 shrink-0 bg-[#0F172A]">
               <form 
-                onSubmit={handleSubmit}
+                onSubmit={handleManualSubmit}
                 className="relative flex items-end bg-[#1E293B] border border-slate-700 rounded-2xl p-2 shadow-lg focus-within:border-slate-500 transition-colors"
               >
                 <button 
@@ -163,7 +177,7 @@ export default function MachineHubClient({ machine }) {
                 <textarea 
                   rows={1}
                   value={input}
-                  onChange={handleInputChange}
+                  onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Describe the fault, upload a schematic, or paste PLC logic..."
                   className="w-full max-h-48 bg-transparent text-slate-200 placeholder-slate-500 resize-none outline-none py-3 px-2 font-sans"
