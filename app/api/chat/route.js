@@ -40,16 +40,23 @@ export async function POST(req) {
 
     // 4. Call the OpenAI model and stream the text
     const result = await streamText({
-      model: openai('gpt-4o'), // You can change this to 'gpt-4o-mini' for faster/cheaper responses
+      model: openai('gpt-4o'), 
       system: systemPrompt,
       messages,
     });
 
-    // 5. Return the stream to the Next.js client safely (handles version differences in the ai SDK)
+    // 5. Bulletproof stream return (handles every possible version of the Vercel AI SDK)
     if (typeof result.toDataStreamResponse === 'function') {
       return result.toDataStreamResponse();
-    } else {
+    } else if (typeof result.toTextStreamResponse === 'function') {
+      return result.toTextStreamResponse();
+    } else if (typeof result.toAIStreamResponse === 'function') {
       return result.toAIStreamResponse();
+    } else {
+      // Absolute fallback if the object methods are completely missing
+      return new Response(result.textStream, {
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
     }
     
   } catch (error) {
