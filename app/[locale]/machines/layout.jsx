@@ -59,17 +59,7 @@ export default async function MachinesLayout({ children, params }) {
           <h2 className="px-5 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
             Your Machines
           </h2>
-          
-          {/* --- ON-SCREEN DEBUG BLOCK --- */}
-          <div className="mx-3 mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded text-[10px] font-mono text-yellow-200 break-all flex flex-col gap-1">
-            <p>Auth: {user ? 'LOGGED IN' : 'ANONYMOUS'}</p>
-            <p>UID: {user?.id || 'null'}</p>
-            <p>Auth Err: {authError}</p>
-            <p>DB Err: {dbError ? dbError.message : 'None'}</p>
-            <p>Count: {machines?.length ?? 'null'}</p>
-          </div>
-          {/* ------------------------------- */}
-
+                    
           <nav className="flex flex-col gap-1 px-3">
             {machines && machines.length > 0 ? (
               machines.map((machine) => (

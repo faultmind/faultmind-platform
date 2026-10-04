@@ -2,12 +2,15 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Paperclip, Mic, Send, Activity, FileText, Wrench, Package, MessageSquare, Bot, User } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 export default function MachineHubClient({ machine }) {
   const [activeTab, setActiveTab] = useState('chat');
   const chatBottomRef = useRef(null);
 
-  // Native React state replaces useChat
   const [text, setText] = useState('');
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -27,13 +30,11 @@ export default function MachineHubClient({ machine }) {
     if (e) e.preventDefault();
     if (!text.trim() || isLoading) return;
     
-    // Add user message to UI immediately
     const userMessage = { id: Date.now(), role: 'user', content: text };
     setMessages((prev) => [...prev, userMessage]);
     setText('');
     setIsLoading(true);
 
-    // Create a blank placeholder for the AI's incoming response
     const botMessageId = Date.now() + 1;
     setMessages((prev) => [...prev, { id: botMessageId, role: 'assistant', content: '' }]);
 
@@ -43,7 +44,6 @@ export default function MachineHubClient({ machine }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           machineId: machine?.id || 'unknown',
-          // Send only standard roles and content to backend
           messages: [...messages, userMessage].map(m => ({ role: m.role, content: m.content })) 
         })
       });
@@ -55,7 +55,6 @@ export default function MachineHubClient({ machine }) {
         return;
       }
 
-      // Natively parse the raw text stream
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let done = false;
@@ -147,12 +146,51 @@ export default function MachineHubClient({ machine }) {
                     </div>
                   )}
                   
-                  <div className={`max-w-[80%] p-4 rounded-2xl leading-relaxed whitespace-pre-wrap ${
+                  <div className={`max-w-[80%] p-4 rounded-2xl leading-relaxed ${
                     m.role === 'user'
-                      ? 'bg-[#D9FF00] text-slate-900 font-medium rounded-tr-none'
-                      : 'bg-[#131C31] text-slate-200 border border-slate-800 rounded-tl-none'
+                      ? 'bg-[#D9FF00] text-slate-900 font-medium rounded-tr-none whitespace-pre-wrap'
+                      : 'bg-[#131C31] text-slate-200 border border-slate-800 rounded-tl-none overflow-x-auto'
                   }`}>
-                    {m.content}
+                    {m.role === 'user' ? (
+                      m.content
+                    ) : (
+                      <ReactMarkdown 
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          p: ({node, ...props}) => <p className="mb-4 last:mb-0" {...props} />,
+                          ul: ({node, ...props}) => <ul className="list-disc pl-6 mb-4 space-y-1" {...props} />,
+                          ol: ({node, ...props}) => <ol className="list-decimal pl-6 mb-4 space-y-1" {...props} />,
+                          li: ({node, ...props}) => <li className="mb-1" {...props} />,
+                          h1: ({node, ...props}) => <h1 className="text-xl font-bold mb-3 text-white mt-6" {...props} />,
+                          h2: ({node, ...props}) => <h2 className="text-lg font-bold mb-3 text-white mt-5" {...props} />,
+                          h3: ({node, ...props}) => <h3 className="text-md font-bold mb-2 text-white mt-4" {...props} />,
+                          strong: ({node, ...props}) => <strong className="font-semibold text-[#D9FF00]" {...props} />,
+                          table: ({node, ...props}) => <div className="overflow-x-auto mb-4"><table className="min-w-full text-sm border-collapse" {...props} /></div>,
+                          th: ({node, ...props}) => <th className="border border-slate-700 bg-slate-800 px-3 py-2 text-left font-semibold text-white" {...props} />,
+                          td: ({node, ...props}) => <td className="border border-slate-700 px-3 py-2" {...props} />,
+                          code({node, inline, className, children, ...props}) {
+                            const match = /language-(\w+)/.exec(className || '');
+                            return !inline && match ? (
+                              <SyntaxHighlighter
+                                style={vscDarkPlus}
+                                language={match[1]}
+                                PreTag="div"
+                                className="rounded-lg border border-slate-700 !my-4 !bg-[#0F172A]"
+                                {...props}
+                              >
+                                {String(children).replace(/\n$/, '')}
+                              </SyntaxHighlighter>
+                            ) : (
+                              <code className="bg-slate-800 text-[#D9FF00] px-1.5 py-0.5 rounded-md text-sm font-mono" {...props}>
+                                {children}
+                              </code>
+                            );
+                          }
+                        }}
+                      >
+                        {m.content}
+                      </ReactMarkdown>
+                    )}
                   </div>
 
                   {m.role === 'user' && (
