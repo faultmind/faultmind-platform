@@ -8,11 +8,8 @@ export default function MachineHubClient({ machine }) {
   const [activeTab, setActiveTab] = useState('chat');
   const chatBottomRef = useRef(null);
 
-  // 1. MANUALLY CONTROL INPUT STATE (This fixes the typing/pasting freeze)
-  const [input, setInput] = useState('');
-
-  // 2. EXTRACT ONLY WHAT WE NEED FROM THE SDK
-  const { messages, append, isLoading } = useChat({
+  // 1. Strictly use the standard SDK functions
+  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
     api: '/api/chat',
     body: {
       machineId: machine?.id || 'unknown',
@@ -21,7 +18,7 @@ export default function MachineHubClient({ machine }) {
     },
   });
 
-  // Auto-scroll chat to the latest message
+  // Auto-scroll chat
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
@@ -33,23 +30,14 @@ export default function MachineHubClient({ machine }) {
     { id: 'parts', label: 'Spare Parts', icon: Package },
   ];
 
-  // 3. CUSTOM SUBMIT HANDLER
-  const handleManualSubmit = (e) => {
-    if (e) e.preventDefault();
-    if (!input.trim() || isLoading) return;
-    
-    // Send the message manually
-    append({ role: 'user', content: input });
-    
-    // Clear the text box immediately
-    setInput('');
-  };
-
-  // Allow Enter key to submit
+  // 2. Trigger native form submission on Enter
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleManualSubmit(e);
+      if (input && input.trim() && !isLoading) {
+        const form = e.target.closest('form');
+        if (form) form.requestSubmit();
+      }
     }
   };
 
@@ -147,8 +135,9 @@ export default function MachineHubClient({ machine }) {
             </div>
 
             <div className="p-6 shrink-0 bg-[#0F172A]">
+              {/* 3. Wrap in standard form using handleSubmit */}
               <form 
-                onSubmit={handleManualSubmit}
+                onSubmit={handleSubmit}
                 className="relative flex items-end bg-[#1E293B] border border-slate-700 rounded-2xl p-2 shadow-lg focus-within:border-slate-500 transition-colors"
               >
                 <button type="button" className="p-3 text-slate-400 hover:text-[#D9FF00] transition-colors rounded-xl hover:bg-slate-800">
@@ -158,7 +147,7 @@ export default function MachineHubClient({ machine }) {
                 <textarea 
                   rows={1}
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   placeholder="Describe the fault, upload a schematic, or paste PLC logic..."
                   className="w-full max-h-48 bg-transparent text-slate-200 placeholder-slate-500 resize-none outline-none py-3 px-2 font-sans"
@@ -170,7 +159,7 @@ export default function MachineHubClient({ machine }) {
                   </button>
                   <button 
                     type="submit"
-                    disabled={!input.trim() || isLoading}
+                    disabled={!input || !input.trim() || isLoading}
                     className="p-2.5 bg-[#D9FF00] hover:bg-[#c2e600] disabled:bg-slate-700 disabled:text-slate-500 text-slate-900 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
                   >
                     <Send size={18} className="translate-x-0.5" />
