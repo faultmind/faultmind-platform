@@ -50,6 +50,7 @@ export async function POST(req) {
     
   } catch (error) {
     console.error("FaultMind Chat API Error:", error);
-    return new Response('Internal Server Error', { status: 500 });
+    // This will send the exact crash reason to your screen instead of a generic "Internal Server Error"
+    return new Response(`Server Crash Details: ${error.message}`, { status: 500 });
   }
 }
