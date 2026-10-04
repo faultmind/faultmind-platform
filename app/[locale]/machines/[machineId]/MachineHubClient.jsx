@@ -8,11 +8,9 @@ export default function MachineHubClient({ machine }) {
   const [activeTab, setActiveTab] = useState('chat');
   const chatBottomRef = useRef(null);
 
-  // 1. WE manage the text box state, NOT the AI SDK. This prevents freezing.
   const [text, setText] = useState('');
 
-  // 2. Only take the message feed and the append function from the SDK.
-  const { messages, append, isLoading } = useChat({
+  const { messages, append } = useChat({
     api: '/api/chat',
     body: {
       machineId: machine?.id || 'unknown',
@@ -21,10 +19,9 @@ export default function MachineHubClient({ machine }) {
     },
   });
 
-  // Auto-scroll chat
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+  }, [messages]);
 
   const tabs = [
     { id: 'chat', label: 'Chat', icon: MessageSquare },
@@ -33,16 +30,40 @@ export default function MachineHubClient({ machine }) {
     { id: 'parts', label: 'Spare Parts', icon: Package },
   ];
 
-  // 3. Custom submit function that bypasses the SDK's form handler
-  const handleSend = (e) => {
+  // ==========================================
+  // DIAGNOSTIC HANDLESEND FUNCTION
+  // ==========================================
+  const handleSend = async (e) => {
     if (e) e.preventDefault();
-    if (!text.trim() || isLoading) return;
+    if (!text.trim()) return;
     
-    // Send message to backend
-    append({ role: 'user', content: text });
+    const testMessage = text;
     
-    // Clear our local text box
-    setText('');
+    try {
+      // 1. Manually ping your Next.js backend to see if it is rejecting the request
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          messages: [{ role: 'user', content: testMessage }] 
+        })
+      });
+      
+      // 2. If the backend fails, pop up an alert with the exact error
+      if (!response.ok) {
+        const errorText = await response.text();
+        alert(`🚨 BACKEND ERROR (Status ${response.status}):\n\n${errorText.substring(0, 150)}`);
+        return;
+      }
+
+      // 3. If the backend is healthy, trigger the SDK
+      append({ role: 'user', content: testMessage });
+      setText(''); // Clear the box
+      
+    } catch (err) {
+      // 4. If the client-side code itself crashes, pop up this alert
+      alert(`🚨 FRONTEND CRASH:\n\n${err.message}`);
+    }
   };
 
   const handleKeyDown = (e) => {
@@ -131,22 +152,10 @@ export default function MachineHubClient({ machine }) {
                 </div>
               ))}
 
-              {isLoading && (
-                <div className="flex gap-4 items-center">
-                  <div className="w-8 h-8 rounded-full bg-[#131C31] border border-slate-700 flex items-center justify-center shrink-0">
-                    <Activity size={16} className="text-[#D9FF00] animate-spin" />
-                  </div>
-                  <span className="text-xs text-slate-500 font-mono animate-pulse">
-                    FaultMind is analyzing schematics and fault trees...
-                  </span>
-                </div>
-              )}
-
               <div ref={chatBottomRef} />
             </div>
 
             <div className="p-6 shrink-0 bg-[#0F172A]">
-              {/* 4. Use standard form submission calling our custom handleSend */}
               <form 
                 onSubmit={handleSend}
                 className="relative flex items-end bg-[#1E293B] border border-slate-700 rounded-2xl p-2 shadow-lg focus-within:border-slate-500 transition-colors"
@@ -155,7 +164,6 @@ export default function MachineHubClient({ machine }) {
                   <Paperclip size={20} />
                 </button>
                 
-                {/* 5. Pure React state. No SDK magic here. */}
                 <textarea 
                   rows={1}
                   value={text}
@@ -171,26 +179,16 @@ export default function MachineHubClient({ machine }) {
                   </button>
                   <button 
                     type="submit"
-                    disabled={!text.trim() || isLoading}
+                    disabled={!text.trim()}
                     className="p-2.5 bg-[#D9FF00] hover:bg-[#c2e600] disabled:bg-slate-700 disabled:text-slate-500 text-slate-900 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
                   >
                     <Send size={18} className="translate-x-0.5" />
                   </button>
                 </div>
               </form>
-
-              <div className="text-center mt-3">
-                <span className="text-xs text-slate-500">
-                  FaultMind AI can make mistakes. Verify critical logic before forcing I/O.
-                </span>
-              </div>
             </div>
           </div>
         )}
-
-        {activeTab === 'documents' && <div className="p-8 text-slate-400">Indexed manuals and schematics will appear here.</div>}
-        {activeTab === 'work-orders' && <div className="p-8 text-slate-400">Maintenance history and voice-logged reports will appear here.</div>}
-        {activeTab === 'parts' && <div className="p-8 text-slate-400">Compatible spare parts and inventory counts will appear here.</div>}
       </div>
     </div>
   );
