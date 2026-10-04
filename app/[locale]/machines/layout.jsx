@@ -36,6 +36,15 @@ export default async function MachinesLayout({ children, params }) {
     .select('id, name, brand_model')
     .order('created_at', { ascending: false });
 
+    {/* --- ON-SCREEN DEBUG BLOCK --- */}
+          <div className="mx-3 mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded text-[10px] font-mono text-yellow-200 break-all flex flex-col gap-1">
+            <p>Auth Status: {user ? 'LOGGED IN' : 'ANONYMOUS'}</p>
+            <p>Current Server UID: {user?.id || 'null'}</p>
+            <p>Error: {error ? error.message : 'None'}</p>
+            <p>Count: {machines?.length ?? 'null'}</p>
+          </div>
+          {/* ------------------------------- */}
+
   return (
     <div className="flex h-screen w-full bg-[#0F172A] text-slate-300 font-sans">
       <aside className="w-64 bg-[#131C31] border-r border-slate-800 flex flex-col">
@@ -54,15 +63,6 @@ export default async function MachinesLayout({ children, params }) {
             Your Machines
           </h2>
           
-          {/* --- ON-SCREEN DEBUG BLOCK --- */}
-          <div className="mx-3 mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded text-[10px] font-mono text-yellow-200 break-all">
-            <p>URL Set: {process.env.NEXT_PUBLIC_SUPABASE_URL ? 'Yes' : 'NO'}</p>
-            <p>Key Set: {process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'Yes' : 'NO'}</p>
-            <p>Error: {error ? error.message : 'None'}</p>
-            <p>Count: {machines?.length ?? 'null'}</p>
-          </div>
-          {/* ------------------------------- */}
-
           <nav className="flex flex-col gap-1 px-3">
             {machines && machines.length > 0 ? (
               machines.map((machine) => (
