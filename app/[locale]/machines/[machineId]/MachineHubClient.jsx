@@ -1,11 +1,27 @@
 'use client';
 
-import { useState } from 'react';
-import { Paperclip, Mic, Send, Activity, FileText, Wrench, Package, MessageSquare } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { useChat } from 'ai/react';
+import { Paperclip, Mic, Send, Activity, FileText, Wrench, Package, MessageSquare, Bot, User } from 'lucide-react';
 
 export default function MachineHubClient({ machine }) {
   const [activeTab, setActiveTab] = useState('chat');
-  const [input, setInput] = useState('');
+  const chatBottomRef = useRef(null);
+
+  // 1. Wire up Vercel AI SDK
+  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
+    api: '/api/chat',
+    body: {
+      machineId: machine?.id,
+      machineName: machine?.name,
+      controller: machine?.brand_model,
+    },
+  });
+
+  // Auto-scroll chat to the latest message
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isLoading]);
 
   const tabs = [
     { id: 'chat', label: 'Chat', icon: MessageSquare },
@@ -13,6 +29,16 @@ export default function MachineHubClient({ machine }) {
     { id: 'work-orders', label: 'Work Orders', icon: Wrench },
     { id: 'parts', label: 'Spare Parts', icon: Package },
   ];
+
+  // Allow Enter key to submit (Shift+Enter for newline)
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (input.trim() && !isLoading) {
+        handleSubmit(e);
+      }
+    }
+  };
 
   return (
     <div className="flex flex-col h-full w-full bg-[#0F172A]">
@@ -23,14 +49,14 @@ export default function MachineHubClient({ machine }) {
           <div>
             <div className="flex items-center gap-3 mb-1">
               <h1 className="text-3xl font-bold text-white tracking-tight">
-                {machine.name}
+                {machine?.name || 'Machine'}
               </h1>
               <span className="px-2.5 py-1 rounded-md bg-[#D9FF00]/10 text-[#D9FF00] text-xs font-semibold border border-[#D9FF00]/20 flex items-center gap-1.5">
                 <Activity size={12} /> Online
               </span>
             </div>
             <p className="text-sm text-slate-400 font-mono mt-2">
-              Controller: {machine.brand_model || 'Not specified'}
+              Controller: {machine?.brand_model || 'Not specified'}
             </p>
           </div>
         </div>
@@ -68,46 +94,102 @@ export default function MachineHubClient({ machine }) {
             
             {/* Chat Feed */}
             <div className="flex-1 overflow-y-auto p-8 space-y-6">
+              
+              {/* Initial Assistant Welcome */}
               <div className="flex gap-4">
                 <div className="w-8 h-8 rounded-full bg-[#131C31] border border-slate-700 flex items-center justify-center shrink-0 mt-1">
                   <Activity size={16} className="text-[#D9FF00]" />
                 </div>
                 <div className="flex-1 text-slate-300 leading-relaxed bg-[#131C31] p-4 rounded-2xl rounded-tl-none border border-slate-800">
-                  <p>I have loaded the documentation for {machine.name}. What issue are you seeing on the floor?</p>
+                  <p>I have loaded the diagnostic context for <span className="font-semibold text-white">{machine?.name}</span> ({machine?.brand_model || 'Standard Controller'}). What issue or fault code are you seeing on the floor?</p>
                 </div>
               </div>
+
+              {/* Dynamic Conversation Stream */}
+              {messages.map((m) => (
+                <div key={m.id} className={`flex gap-4 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  {m.role !== 'user' && (
+                    <div className="w-8 h-8 rounded-full bg-[#131C31] border border-slate-700 flex items-center justify-center shrink-0 mt-1">
+                      <Bot size={16} className="text-[#D9FF00]" />
+                    </div>
+                  )}
+                  
+                  <div 
+                    className={`max-w-[80%] p-4 rounded-2xl leading-relaxed whitespace-pre-wrap ${
+                      m.role === 'user'
+                        ? 'bg-[#D9FF00] text-slate-900 font-medium rounded-tr-none'
+                        : 'bg-[#131C31] text-slate-200 border border-slate-800 rounded-tl-none'
+                    }`}
+                  >
+                    {m.content}
+                  </div>
+
+                  {m.role === 'user' && (
+                    <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0 mt-1">
+                      <User size={16} className="text-slate-300" />
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Streaming / Loading Indicator */}
+              {isLoading && (
+                <div className="flex gap-4 items-center">
+                  <div className="w-8 h-8 rounded-full bg-[#131C31] border border-slate-700 flex items-center justify-center shrink-0">
+                    <Activity size={16} className="text-[#D9FF00] animate-spin" />
+                  </div>
+                  <span className="text-xs text-slate-500 font-mono animate-pulse">
+                    FaultMind is analyzing schematics and fault trees...
+                  </span>
+                </div>
+              )}
+
+              <div ref={chatBottomRef} />
             </div>
 
-            {/* Chat Input */}
+            {/* Chat Input Form */}
             <div className="p-6 shrink-0 bg-[#0F172A]">
-              <div className="relative flex items-end bg-[#1E293B] border border-slate-700 rounded-2xl p-2 shadow-lg focus-within:border-slate-500 transition-colors">
-                
-                <button className="p-3 text-slate-400 hover:text-[#D9FF00] transition-colors rounded-xl hover:bg-slate-800">
+              <form 
+                onSubmit={handleSubmit}
+                className="relative flex items-end bg-[#1E293B] border border-slate-700 rounded-2xl p-2 shadow-lg focus-within:border-slate-500 transition-colors"
+              >
+                <button 
+                  type="button"
+                  className="p-3 text-slate-400 hover:text-[#D9FF00] transition-colors rounded-xl hover:bg-slate-800"
+                >
                   <Paperclip size={20} />
                 </button>
                 
                 <textarea 
                   rows={1}
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyDown}
                   placeholder="Describe the fault, upload a schematic, or paste PLC logic..."
                   className="w-full max-h-48 bg-transparent text-slate-200 placeholder-slate-500 resize-none outline-none py-3 px-2 font-sans"
                 />
 
                 <div className="flex items-center gap-1 pb-1 pr-1">
-                  <button className="p-2.5 text-slate-400 hover:text-white transition-colors rounded-xl hover:bg-slate-800">
+                  <button 
+                    type="button"
+                    className="p-2.5 text-slate-400 hover:text-white transition-colors rounded-xl hover:bg-slate-800"
+                  >
                     <Mic size={20} />
                   </button>
                   <button 
-                    disabled={!input.trim()}
-                    className="p-2.5 bg-[#D9FF00] hover:bg-[#c2e600] disabled:bg-slate-700 disabled:text-slate-500 text-slate-900 rounded-xl transition-colors"
+                    type="submit"
+                    disabled={!input.trim() || isLoading}
+                    className="p-2.5 bg-[#D9FF00] hover:bg-[#c2e600] disabled:bg-slate-700 disabled:text-slate-500 text-slate-900 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
                   >
                     <Send size={18} className="translate-x-0.5" />
                   </button>
                 </div>
-              </div>
+              </form>
+
               <div className="text-center mt-3">
-                <span className="text-xs text-slate-500">FaultMind AI can make mistakes. Verify critical logic before forcing I/O.</span>
+                <span className="text-xs text-slate-500">
+                  FaultMind AI can make mistakes. Verify critical logic before forcing I/O.
+                </span>
               </div>
             </div>
           </div>
