@@ -3,16 +3,18 @@ import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { Settings, Wrench, Package, Plus, Cpu } from 'lucide-react';
 
-export default async function MachinesLayout({ children }) {
-  // 1. Initialize Supabase Server Client
+export default async function MachinesLayout({ children, params }) {
+  const { locale = 'en' } = await params;
+
+  // 1. Initialize Supabase Server Client with complete cookie handling
   const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
-        get(name) {
-          return cookieStore.get(name)?.value;
+        getAll() {
+          return cookieStore.getAll();
         },
       },
     }
@@ -21,11 +23,11 @@ export default async function MachinesLayout({ children }) {
   // 2. Fetch the user's machines
   const { data: machines, error } = await supabase
     .from('machines')
-    .select('id, name, brand_model') 
+    .select('id, name, brand_model')
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error("Failed to load machines:", error);
+    console.error("Failed to load machines:", error.message);
   }
 
   return (
@@ -35,7 +37,7 @@ export default async function MachinesLayout({ children }) {
         {/* Top Action Area */}
         <div className="p-4">
           <Link 
-            href="/machines/new"
+            href={`/${locale}/machines/new`}
             className="w-full flex items-center justify-center gap-2 bg-[#D9FF00] hover:bg-[#c2e600] text-slate-900 font-bold py-2.5 px-4 rounded-lg transition-colors"
           >
             <Plus size={20} strokeWidth={2.5} />
@@ -53,12 +55,11 @@ export default async function MachinesLayout({ children }) {
               machines.map((machine) => (
                 <Link
                   key={machine.id}
-                  href={`/machines/${machine.id}`}
+                  href={`/${locale}/machines/${machine.id}`}
                   className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-800/50 transition-colors group"
                 >
                   <Cpu size={18} className="text-slate-400 group-hover:text-[#D9FF00]" />
                   <span className="truncate">{machine.name}</span>
-                  {/* Status indicator can be added back here if you track online/fault status in the DB */}
                 </Link>
               ))
             ) : (
@@ -69,13 +70,13 @@ export default async function MachinesLayout({ children }) {
 
         {/* Bottom CMMS Links */}
         <div className="p-4 border-t border-slate-800 flex flex-col gap-2">
-          <Link href="/work-orders" className="flex items-center gap-3 px-3 py-2 text-sm hover:text-white transition-colors">
+          <Link href={`/${locale}/work-orders`} className="flex items-center gap-3 px-3 py-2 text-sm hover:text-white transition-colors">
             <Wrench size={18} /> Master Work Orders
           </Link>
-          <Link href="/inventory" className="flex items-center gap-3 px-3 py-2 text-sm hover:text-white transition-colors">
+          <Link href={`/${locale}/inventory`} className="flex items-center gap-3 px-3 py-2 text-sm hover:text-white transition-colors">
             <Package size={18} /> Spare Parts Inventory
           </Link>
-          <Link href="/settings" className="flex items-center gap-3 px-3 py-2 text-sm hover:text-white transition-colors">
+          <Link href={`/${locale}/settings`} className="flex items-center gap-3 px-3 py-2 text-sm hover:text-white transition-colors">
             <Settings size={18} /> Workspace Settings
           </Link>
         </div>
