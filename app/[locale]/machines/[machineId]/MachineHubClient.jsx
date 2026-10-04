@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useChat } from 'ai/react';
+import { useChat } from '@ai-sdk/react';
 import { Paperclip, Mic, Send, Activity, FileText, Wrench, Package, MessageSquare, Bot, User } from 'lucide-react';
 
 export default function MachineHubClient({ machine }) {

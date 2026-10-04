@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.83",
+    "@ai-sdk/react": "^4.0.130",
     "@netlify/blobs": "^10.7.13",
     "@paddle/paddle-node-sdk": "^3.0.0",
     "@supabase/ssr": "^0.12.7",
