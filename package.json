@@ -10,10 +10,12 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.83",
     "@netlify/blobs": "^10.7.13",
     "@paddle/paddle-node-sdk": "^3.0.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.48.0",
+    "ai": "^7.0.127",
     "blobshape": "^1.0.0",
     "bright": "^1.0.0",
     "lucide-react": "^1.51.0",
