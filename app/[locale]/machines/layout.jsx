@@ -31,19 +31,16 @@ export default async function MachinesLayout({ children, params }) {
     }
   );
 
-  const { data: machines, error } = await supabase
+  // 1. Crash-proof Auth Fetch
+  const authResponse = await supabase.auth.getUser();
+  const user = authResponse?.data?.user || null;
+  const authError = authResponse?.error?.message || 'None';
+
+  // 2. Fetch Machines
+  const { data: machines, error: dbError } = await supabase
     .from('machines')
     .select('id, name, brand_model')
     .order('created_at', { ascending: false });
-
-    {/* --- ON-SCREEN DEBUG BLOCK --- */}
-          <div className="mx-3 mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded text-[10px] font-mono text-yellow-200 break-all flex flex-col gap-1">
-            <p>Auth Status: {user ? 'LOGGED IN' : 'ANONYMOUS'}</p>
-            <p>Current Server UID: {user?.id || 'null'}</p>
-            <p>Error: {error ? error.message : 'None'}</p>
-            <p>Count: {machines?.length ?? 'null'}</p>
-          </div>
-          {/* ------------------------------- */}
 
   return (
     <div className="flex h-screen w-full bg-[#0F172A] text-slate-300 font-sans">
@@ -63,6 +60,16 @@ export default async function MachinesLayout({ children, params }) {
             Your Machines
           </h2>
           
+          {/* --- ON-SCREEN DEBUG BLOCK --- */}
+          <div className="mx-3 mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded text-[10px] font-mono text-yellow-200 break-all flex flex-col gap-1">
+            <p>Auth: {user ? 'LOGGED IN' : 'ANONYMOUS'}</p>
+            <p>UID: {user?.id || 'null'}</p>
+            <p>Auth Err: {authError}</p>
+            <p>DB Err: {dbError ? dbError.message : 'None'}</p>
+            <p>Count: {machines?.length ?? 'null'}</p>
+          </div>
+          {/* ------------------------------- */}
+
           <nav className="flex flex-col gap-1 px-3">
             {machines && machines.length > 0 ? (
               machines.map((machine) => (
