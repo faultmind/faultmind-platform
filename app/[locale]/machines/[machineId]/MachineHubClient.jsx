@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { Paperclip, Mic, Send, Activity, FileText, Wrench, Package, MessageSquare, Bot, User } from 'lucide-react';
 
@@ -8,8 +8,11 @@ export default function MachineHubClient({ machine }) {
   const [activeTab, setActiveTab] = useState('chat');
   const chatBottomRef = useRef(null);
 
-  // 1. Use the native SDK state, but we will protect against undefined values below
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
+  // 1. MANUALLY CONTROL INPUT STATE (This fixes the typing/pasting freeze)
+  const [input, setInput] = useState('');
+
+  // 2. EXTRACT ONLY WHAT WE NEED FROM THE SDK
+  const { messages, append, isLoading } = useChat({
     api: '/api/chat',
     body: {
       machineId: machine?.id || 'unknown',
@@ -30,14 +33,23 @@ export default function MachineHubClient({ machine }) {
     { id: 'parts', label: 'Spare Parts', icon: Package },
   ];
 
-  // 2. Safely trigger the native form submission when hitting Enter
+  // 3. CUSTOM SUBMIT HANDLER
+  const handleManualSubmit = (e) => {
+    if (e) e.preventDefault();
+    if (!input.trim() || isLoading) return;
+    
+    // Send the message manually
+    append({ role: 'user', content: input });
+    
+    // Clear the text box immediately
+    setInput('');
+  };
+
+  // Allow Enter key to submit
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      // Ensure input exists before trimming
-      if (input && input.trim() && !isLoading) {
-        e.currentTarget.form.requestSubmit();
-      }
+      handleManualSubmit(e);
     }
   };
 
@@ -135,20 +147,18 @@ export default function MachineHubClient({ machine }) {
             </div>
 
             <div className="p-6 shrink-0 bg-[#0F172A]">
-              {/* 3. Wrap in a native form with the SDK's handleSubmit */}
               <form 
-                onSubmit={handleSubmit}
+                onSubmit={handleManualSubmit}
                 className="relative flex items-end bg-[#1E293B] border border-slate-700 rounded-2xl p-2 shadow-lg focus-within:border-slate-500 transition-colors"
               >
                 <button type="button" className="p-3 text-slate-400 hover:text-[#D9FF00] transition-colors rounded-xl hover:bg-slate-800">
                   <Paperclip size={20} />
                 </button>
                 
-                {/* 4. Fallback to empty string if input is undefined */}
                 <textarea 
                   rows={1}
-                  value={input || ''}
-                  onChange={handleInputChange}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Describe the fault, upload a schematic, or paste PLC logic..."
                   className="w-full max-h-48 bg-transparent text-slate-200 placeholder-slate-500 resize-none outline-none py-3 px-2 font-sans"
@@ -158,10 +168,9 @@ export default function MachineHubClient({ machine }) {
                   <button type="button" className="p-2.5 text-slate-400 hover:text-white transition-colors rounded-xl hover:bg-slate-800">
                     <Mic size={20} />
                   </button>
-                  {/* 5. Safe validation before enabling the button */}
                   <button 
                     type="submit"
-                    disabled={!input || !input.trim() || isLoading}
+                    disabled={!input.trim() || isLoading}
                     className="p-2.5 bg-[#D9FF00] hover:bg-[#c2e600] disabled:bg-slate-700 disabled:text-slate-500 text-slate-900 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
                   >
                     <Send size={18} className="translate-x-0.5" />
