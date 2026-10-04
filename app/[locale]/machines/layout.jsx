@@ -4,9 +4,10 @@ import { createServerClient } from '@supabase/ssr';
 import { Settings, Wrench, Package, Plus, Cpu } from 'lucide-react';
 
 export default async function MachinesLayout({ children, params }) {
-  const { locale = 'en' } = await params;
+  const resolvedParams = await params;
+  const locale = resolvedParams?.locale || 'en';
 
-  // 1. Initialize Supabase Server Client with complete cookie handling
+  // 1. Initialize Supabase Server Client with full read/write cookie handlers
   const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -15,6 +16,15 @@ export default async function MachinesLayout({ children, params }) {
       cookies: {
         getAll() {
           return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {
+            // Handled safely in Server Components
+          }
         },
       },
     }
@@ -26,8 +36,11 @@ export default async function MachinesLayout({ children, params }) {
     .select('id, name, brand_model')
     .order('created_at', { ascending: false });
 
+  // 3. Server-side log for Vercel Runtime Logs
   if (error) {
-    console.error("Failed to load machines:", error.message);
+    console.error("DEBUG - Machines fetch error:", error.message, error.details);
+  } else {
+    console.log("DEBUG - Machines fetched count:", machines?.length);
   }
 
   return (
