@@ -2,7 +2,13 @@
 import { useState, useEffect } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
-import { supabase } from "../../../lib/supabaseClient";
+import { createBrowserClient } from '@supabase/ssr';
+
+// 1. Initialize the SSR-compatible Browser Client
+const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 export default function Page() {
   const tHeader = useTranslations("Header");
@@ -20,7 +26,7 @@ export default function Page() {
   const [statusMsg, setStatusMsg] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // 1. Initialize Paddle Sandbox & Listen for Supabase Auth
+  // 2. Initialize Paddle Sandbox & Listen for Supabase Auth
   useEffect(() => {
     if (typeof window !== "undefined" && window.Paddle) {
       window.Paddle.Environment.set("sandbox");
@@ -29,23 +35,23 @@ export default function Page() {
       });
     }
 
-   const checkSubscription = async (userId) => {
-  console.log("Checking access for engineer ID:", userId);
-  
-  const { data, error } = await supabase
-    .from("subscriptions")
-    .select("*") // Select all columns temporarily to see the exact data shape
-    .eq("user_id", userId)
-    .maybeSingle(); 
-    
-  console.log("Supabase Auth Response:", { data, error });
-    
-  if (data && data.status === "active") {
-    setIsSubscribed(true);
-  } else {
-    setIsSubscribed(false);
-  }
-};
+    const checkSubscription = async (userId) => {
+      console.log("Checking access for engineer ID:", userId);
+      
+      const { data, error } = await supabase
+        .from("subscriptions")
+        .select("*")
+        .eq("user_id", userId)
+        .maybeSingle(); 
+        
+      console.log("Supabase Auth Response:", { data, error });
+        
+      if (data && data.status === "active") {
+        setIsSubscribed(true);
+      } else {
+        setIsSubscribed(false);
+      }
+    };
 
     // Check active session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -72,8 +78,7 @@ export default function Page() {
     };
   }, []);
 
-  // 2. Auth Actions
-  // 2. Auth Actions
+  // 3. Auth Actions
   const handleAuth = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -117,7 +122,7 @@ export default function Page() {
     setIsSubscribed(false);
   };
 
-  // 3. Paddle Checkout (passes Supabase User ID into custom_data)
+  // 4. Paddle Checkout (passes Supabase User ID into custom_data)
   const handleCheckout = () => {
     // Guard clause: Prevent checkout if the user session isn't fully loaded
     if (!user || !user.id) {
@@ -134,7 +139,7 @@ export default function Page() {
     }
   };
 
-  // 4. Language Switcher Handler
+  // 5. Language Switcher Handler
   const changeLanguage = (nextLocale) => {
     router.push(`/${nextLocale}`);
   };
@@ -437,7 +442,7 @@ export default function Page() {
 
           {isSubscribed ? (
             <button
-              onClick={() => router.push(`/${locale}/dashboard`)}
+              onClick={() => router.push(`/${locale}/machines`)}
               style={{
                 backgroundColor: "#4ADE80",
                 color: "#0F172A",
@@ -450,7 +455,7 @@ export default function Page() {
                 width: "100%",
               }}
             >
-              Go to Dashboard
+              Go to Workspace
             </button>
           ) : (
             <button
