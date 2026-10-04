@@ -36,17 +36,9 @@ export default async function MachinesLayout({ children, params }) {
     .select('id, name, brand_model')
     .order('created_at', { ascending: false });
 
-  if (error) {
-    console.error("Vercel Server Fetch Error:", error.message);
-  } else {
-    console.log("Vercel Server Fetched Machines:", machines?.length);
-  }
-
   return (
     <div className="flex h-screen w-full bg-[#0F172A] text-slate-300 font-sans">
-      {/* LEFT SIDEBAR */}
       <aside className="w-64 bg-[#131C31] border-r border-slate-800 flex flex-col">
-        {/* Top Action Area */}
         <div className="p-4">
           <Link 
             href={`/${locale}/machines/new`}
@@ -57,11 +49,20 @@ export default async function MachinesLayout({ children, params }) {
           </Link>
         </div>
 
-        {/* Machine List */}
         <div className="flex-1 overflow-y-auto py-2">
           <h2 className="px-5 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
             Your Machines
           </h2>
+          
+          {/* --- ON-SCREEN DEBUG BLOCK --- */}
+          <div className="mx-3 mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded text-[10px] font-mono text-yellow-200 break-all">
+            <p>URL Set: {process.env.NEXT_PUBLIC_SUPABASE_URL ? 'Yes' : 'NO'}</p>
+            <p>Key Set: {process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'Yes' : 'NO'}</p>
+            <p>Error: {error ? error.message : 'None'}</p>
+            <p>Count: {machines?.length ?? 'null'}</p>
+          </div>
+          {/* ------------------------------- */}
+
           <nav className="flex flex-col gap-1 px-3">
             {machines && machines.length > 0 ? (
               machines.map((machine) => (
@@ -80,7 +81,6 @@ export default async function MachinesLayout({ children, params }) {
           </nav>
         </div>
 
-        {/* Bottom CMMS Links */}
         <div className="p-4 border-t border-slate-800 flex flex-col gap-2">
           <Link href={`/${locale}/work-orders`} className="flex items-center gap-3 px-3 py-2 text-sm hover:text-white transition-colors">
             <Wrench size={18} /> Master Work Orders
@@ -94,7 +94,6 @@ export default async function MachinesLayout({ children, params }) {
         </div>
       </aside>
 
-      {/* MAIN CONTENT AREA */}
       <main className="flex-1 flex flex-col relative h-full">
         {children}
       </main>
