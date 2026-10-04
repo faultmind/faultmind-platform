@@ -85,24 +85,22 @@ export default function MachineHubClient({ machine }) {
 
   return (
     <div className="flex flex-col h-full w-full bg-[#0F172A]">
-<header className="px-6 py-4 bg-[#131C31] border-b border-slate-800 shrink-0 flex items-center justify-between">
-        {/* Left Side: Machine Info */}
-        <div className="flex items-center gap-4">
-          <h1 className="text-xl font-bold text-white tracking-tight">
-            {machine?.name || 'Machine'}
-          </h1>
+<header className="px-6 pt-3 pb-0 bg-[#131C31] border-b border-slate-800 shrink-0">
+        <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
-            <span className="px-2 py-0.5 rounded bg-[#D9FF00]/10 text-[#D9FF00] text-[10px] font-bold uppercase tracking-wider border border-[#D9FF00]/20 flex items-center gap-1">
+            <h1 className="text-lg font-bold text-white tracking-tight">
+              {machine?.name || 'Machine'}
+            </h1>
+            <span className="px-1.5 py-0.5 rounded bg-[#D9FF00]/10 text-[#D9FF00] text-[10px] font-bold uppercase tracking-wider border border-[#D9FF00]/20 flex items-center gap-1">
               <Activity size={10} /> Online
             </span>
-            <span className="text-xs text-slate-500 font-mono border-l border-slate-700 pl-3">
+            <span className="text-xs text-slate-400 font-mono border-l border-slate-700 pl-3 ml-1">
               {machine?.brand_model || 'Not specified'}
             </span>
           </div>
         </div>
 
-        {/* Right Side: Compact Tabs */}
-        <nav className="flex bg-[#0F172A] p-1 rounded-lg border border-slate-800">
+        <nav className="flex gap-6">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
             const Icon = tab.icon;
@@ -110,14 +108,15 @@ export default function MachineHubClient({ machine }) {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
-                  isActive 
-                    ? 'bg-[#1E293B] text-[#D9FF00] shadow-sm border border-slate-700' 
-                    : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                className={`pb-2.5 text-sm font-medium transition-colors relative flex items-center gap-2 ${
+                  isActive ? 'text-[#D9FF00]' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
                 <Icon size={14} />
                 {tab.label}
+                {isActive && (
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#D9FF00] shadow-[0_0_8px_rgba(217,255,0,0.5)]"></div>
+                )}
               </button>
             );
           })}
