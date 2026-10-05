@@ -138,8 +138,8 @@ export default function MachineHubClient({ machine }) {
     }
   };
 
-  // PDF Upload Handler
-const handleFileUpload = async (e) => {
+  // PDF & TXT Upload Handler
+  const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !machine?.id) return;
 
@@ -169,9 +169,13 @@ const handleFileUpload = async (e) => {
         setUploadMsg(`Successfully indexed ${file.name}`);
         fetchDocs();
       } else {
-        const err = await res.text();
+        const errText = await res.text();
+        // Catch raw HTML error templates from Next.js / Vercel
+        const cleanMsg = errText.trim().startsWith('<')
+          ? `Server Error (${res.status}): Check Vercel function runtime logs.`
+          : errText;
         setUploadStatus('error');
-        setUploadMsg(err || 'Failed to process document.');
+        setUploadMsg(cleanMsg || 'Failed to process document.');
       }
     } catch (err) {
       setUploadStatus('error');
