@@ -2,9 +2,10 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { openai } from '@ai-sdk/openai';
 import { embedMany } from 'ai';
-import pdfParse from 'pdf-parse';
+import pdf from 'pdf-parse/lib/pdf-parse.js';
 
-export const maxDuration = 60; // Allow sufficient time for larger PDFs
+export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 // Helper to split text into overlapping chunks
 function chunkText(text, chunkSize = 1000, overlap = 200) {
@@ -15,7 +16,7 @@ function chunkText(text, chunkSize = 1000, overlap = 200) {
     chunks.push(chunk.trim());
     startIndex += chunkSize - overlap;
   }
-  return chunks.filter(c => c.length > 50);
+  return chunks.filter((c) => c.length > 50);
 }
 
 export async function POST(req) {
@@ -24,10 +25,19 @@ export async function POST(req) {
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      { cookies: { getAll() { return cookieStore.getAll(); } } }
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll();
+          },
+        },
+      }
     );
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
     if (!user || authError) {
       return new Response('Unauthorized', { status: 401 });
     }
@@ -40,10 +50,10 @@ export async function POST(req) {
       return new Response('Missing file or machine ID', { status: 400 });
     }
 
-    // 1. Extract raw text from uploaded PDF
+    // 1. Extract text using the direct Node export
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    const pdfData = await pdfParse(buffer);
+    const pdfData = await pdf(buffer);
     const rawText = pdfData.text;
 
     if (!rawText || rawText.trim().length === 0) {
@@ -65,7 +75,7 @@ export async function POST(req) {
       user_id: user.id,
       file_name: file.name,
       content: chunk,
-      embedding: embeddings[index]
+      embedding: embeddings[index],
     }));
 
     const { error: insertError } = await supabase

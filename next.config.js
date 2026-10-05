@@ -4,6 +4,7 @@ const withNextIntl = createNextIntlPlugin('./i18n/request.js');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  serverExternalPackages: ['pdf-parse'],
   eslint: {
     ignoreDuringBuilds: true,
   },
