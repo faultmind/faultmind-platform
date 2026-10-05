@@ -1,5 +1,5 @@
 import { streamText, embed } from 'ai';
-import { openai } from '@ai-sdk/openai';
+import { google } from '@ai-sdk/google';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
@@ -82,7 +82,7 @@ ${
 
     // 4. Stream response and save assistant message on completion
     const result = await streamText({
-      model: openai('gpt-4o'),
+      model: google('gemini-1.5-flash'),
       system: systemPrompt,
       messages,
       onFinish: async ({ text }) => {
