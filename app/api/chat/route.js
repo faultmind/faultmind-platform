@@ -52,8 +52,8 @@ export async function POST(req) {
           'match_machine_documents',
           {
             query_embedding: embedding,
-            match_threshold: 0.25,
-            match_count: 4,
+            match_threshold: 0.0,
+            match_count: 25,
             p_machine_id: machineId,
           }
         );
