@@ -7,11 +7,9 @@ import { createRequire } from 'module';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-// Initialize native Node.js CommonJS loader
 const require = createRequire(import.meta.url);
 const pdfParse = require('pdf-parse');
 
-// Helper to split text into overlapping chunks
 function chunkText(text, chunkSize = 1000, overlap = 200) {
   const chunks = [];
   let startIndex = 0;
@@ -38,10 +36,7 @@ export async function POST(req) {
       }
     );
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (!user || authError) {
       return new Response('Unauthorized', { status: 401 });
     }
@@ -54,26 +49,32 @@ export async function POST(req) {
       return new Response('Missing file or machine ID', { status: 400 });
     }
 
-    // 1. Extract text using native CommonJS require
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const pdfData = await pdfParse(buffer);
-    const rawText = pdfData.text;
+    let rawText = '';
+    const fileName = file.name.toLowerCase();
 
-    if (!rawText || rawText.trim().length === 0) {
-      return new Response('No extractable text found in PDF.', { status: 400 });
+    // Handle .txt directly as UTF-8; parse PDFs using pdf-parse
+    if (fileName.endsWith('.txt')) {
+      rawText = await file.text();
+    } else if (fileName.endsWith('.pdf')) {
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const pdfData = await pdfParse(buffer);
+      rawText = pdfData.text;
+    } else {
+      return new Response('Unsupported file format. Please upload .pdf or .txt files.', { status: 400 });
     }
 
-    // 2. Chunk text
+    if (!rawText || rawText.trim().length === 0) {
+      return new Response('No extractable text found in file.', { status: 400 });
+    }
+
     const chunks = chunkText(rawText);
 
-    // 3. Generate 1536-dim vector embeddings
     const { embeddings } = await embedMany({
       model: openai.embedding('text-embedding-3-small'),
       values: chunks,
     });
 
-    // 4. Batch insert into Supabase
     const rowsToInsert = chunks.map((chunk, index) => ({
       machine_id: machineId,
       user_id: user.id,

@@ -139,13 +139,14 @@ export default function MachineHubClient({ machine }) {
   };
 
   // PDF Upload Handler
-  const handleFileUpload = async (e) => {
+const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !machine?.id) return;
 
-    if (file.type !== 'application/pdf') {
+    const lowerName = file.name.toLowerCase();
+    if (!lowerName.endsWith('.pdf') && !lowerName.endsWith('.txt')) {
       setUploadStatus('error');
-      setUploadMsg('Please upload a valid PDF document.');
+      setUploadMsg('Please upload a valid PDF or TXT document.');
       return;
     }
 
@@ -177,7 +178,7 @@ export default function MachineHubClient({ machine }) {
       setUploadMsg(err.message || 'Network upload error.');
     } finally {
       setIsUploading(false);
-      e.target.value = ''; // Reset file input
+      e.target.value = '';
     }
   };
 
@@ -373,13 +374,13 @@ export default function MachineHubClient({ machine }) {
             {/* Upload Box */}
             <div className="border-2 border-dashed border-slate-700 hover:border-[#D9FF00]/50 rounded-xl p-8 text-center bg-[#131C31]/50 transition-colors">
               <input
-                type="file"
-                id="pdf-upload"
-                accept="application/pdf"
-                className="hidden"
-                onChange={handleFileUpload}
-                disabled={isUploading}
-              />
+  type="file"
+  id="pdf-upload"
+  accept=".pdf,.txt,application/pdf,text/plain"
+  className="hidden"
+  onChange={handleFileUpload}
+  disabled={isUploading}
+/>
               <label htmlFor="pdf-upload" className="cursor-pointer flex flex-col items-center gap-3">
                 {isUploading ? (
                   <Loader2 size={36} className="text-[#D9FF00] animate-spin" />

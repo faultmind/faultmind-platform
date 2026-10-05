@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
-import { Settings, Plus, Cpu } from 'lucide-react';
+import { Settings, Plus } from 'lucide-react';
+import MachineNavList from '@/components/MachineNavList';
 
 export default async function MachinesLayout({ children, params }) {
   const resolvedParams = await params;
@@ -50,7 +51,7 @@ export default async function MachinesLayout({ children, params }) {
   return (
     <div className="flex h-screen w-full bg-[#0B0F19] text-slate-300 font-sans overflow-hidden">
       
-      {/* Minimalist ChatGPT-style Sidebar */}
+      {/* Minimalist Sidebar */}
       <aside className="w-64 bg-[#131C31] border-r border-slate-800 flex flex-col shrink-0">
         <div className="p-5 border-b border-slate-800 flex items-center justify-between">
           <span className="font-bold text-xl text-white tracking-tight">FaultMind</span>
@@ -60,38 +61,25 @@ export default async function MachinesLayout({ children, params }) {
           <div className="px-5 mb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
             Your Machines
           </div>
-          <div className="space-y-1 px-3">
-            {machines && machines.length > 0 ? (
-              machines.map((machine) => (
-                <Link 
-                  key={machine.id} 
-                  href={`/${locale}/machines/${machine.id}`}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition-colors group"
-                >
-                  <Cpu size={18} className="text-slate-500 group-hover:text-[#D9FF00]" />
-                  <span className="truncate text-sm font-medium">{machine.name}</span>
-                </Link>
-              ))
-            ) : (
-              <p className="px-5 text-xs text-slate-500 mt-2">No machines added yet.</p>
-            )}
-          </div>
+          
+          {/* Active-Aware Client Machine Nav */}
+          <MachineNavList machines={machines} locale={locale} />
         </div>
 
         {/* Subtle Bottom Controls */}
         <div className="p-4 border-t border-slate-800 space-y-1">
-           <Link 
-             href={`/${locale}/machines/new`} 
-             className="flex items-center gap-3 px-3 py-2 w-full rounded-lg hover:bg-slate-800 text-slate-400 hover:text-[#D9FF00] transition-colors text-sm font-medium"
-           >
-              <Plus size={18} /> Add Machine
-           </Link>
-           <Link 
-             href={`/${locale}/settings`} 
-             className="flex items-center gap-3 px-3 py-2 w-full rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors text-sm font-medium"
-           >
-              <Settings size={18} /> Settings
-           </Link>
+          <Link 
+            href={`/${locale}/machines/new`} 
+            className="flex items-center gap-3 px-3 py-2 w-full rounded-lg hover:bg-slate-800 text-slate-400 hover:text-[#D9FF00] transition-colors text-sm font-medium no-underline"
+          >
+            <Plus size={18} /> Add Machine
+          </Link>
+          <Link 
+            href={`/${locale}/settings`} 
+            className="flex items-center gap-3 px-3 py-2 w-full rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors text-sm font-medium no-underline"
+          >
+            <Settings size={18} /> Settings
+          </Link>
         </div>
       </aside>
 
