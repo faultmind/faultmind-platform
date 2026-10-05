@@ -24,6 +24,7 @@
     "next": "^15.2.0",
     "next-intl": "^3.26.5",
     "openai": "^4.70.0",
+    "pdf-parse": "^2.4.5",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-markdown": "^10.1.0",
