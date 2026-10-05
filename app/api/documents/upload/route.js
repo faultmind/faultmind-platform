@@ -2,10 +2,14 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { openai } from '@ai-sdk/openai';
 import { embedMany } from 'ai';
-import pdf from 'pdf-parse/lib/pdf-parse.js';
+import { createRequire } from 'module';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
+
+// Initialize native Node.js CommonJS loader
+const require = createRequire(import.meta.url);
+const pdfParse = require('pdf-parse');
 
 // Helper to split text into overlapping chunks
 function chunkText(text, chunkSize = 1000, overlap = 200) {
@@ -50,10 +54,10 @@ export async function POST(req) {
       return new Response('Missing file or machine ID', { status: 400 });
     }
 
-    // 1. Extract text using the direct Node export
+    // 1. Extract text using native CommonJS require
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    const pdfData = await pdf(buffer);
+    const pdfData = await pdfParse(buffer);
     const rawText = pdfData.text;
 
     if (!rawText || rawText.trim().length === 0) {
