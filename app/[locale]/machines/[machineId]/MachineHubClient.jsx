@@ -3,12 +3,17 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { 
   Paperclip, Mic, Send, Activity, FileText, Wrench, Package, 
-  MessageSquare, Bot, User, UploadCloud, Loader2, CheckCircle2, AlertCircle 
+  MessageSquare, Bot, User, UploadCloud, Loader2, CheckCircle2, AlertCircle,
+  ClipboardList
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+// Import our new reporting components
+import { VoiceRecordButton } from '@/components/VoiceRecordButton';
+import ReportFormTab from '@/components/ReportFormTab';
 
 export default function MachineHubClient({ machine }) {
   const [activeTab, setActiveTab] = useState('chat');
@@ -18,12 +23,17 @@ export default function MachineHubClient({ machine }) {
   const [text, setText] = useState('');
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const sessionId = useRef(typeof crypto !== 'undefined' ? crypto.randomUUID() : Date.now().toString()).current;
 
   // Documents State
   const [documents, setDocuments] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState(null); // 'success' | 'error' | null
+  const [uploadStatus, setUploadStatus] = useState(null); 
   const [uploadMsg, setUploadMsg] = useState('');
+
+  // Reporting State
+  const [draftReport, setDraftReport] = useState(null);
+  const [isExtracting, setIsExtracting] = useState(false);
 
   // 1. Fetch Chat History on mount or when machine switches
   useEffect(() => {
@@ -79,6 +89,7 @@ export default function MachineHubClient({ machine }) {
     { id: 'documents', label: 'Documents', icon: FileText },
     { id: 'work-orders', label: 'Work Orders', icon: Wrench },
     { id: 'parts', label: 'Spare Parts', icon: Package },
+    { id: 'reports', label: 'Reports', icon: ClipboardList }, // New Reports Tab
   ];
 
   const handleSend = async (e) => {
@@ -99,6 +110,7 @@ export default function MachineHubClient({ machine }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           machineId: machine?.id || 'unknown',
+          sessionId: sessionId,
           messages: [...messages, userMessage].map(m => ({ role: m.role, content: m.content })) 
         })
       });
@@ -170,7 +182,6 @@ export default function MachineHubClient({ machine }) {
         fetchDocs();
       } else {
         const errText = await res.text();
-        // Catch raw HTML error templates from Next.js / Vercel
         const cleanMsg = errText.trim().startsWith('<')
           ? `Server Error (${res.status}): Check Vercel function runtime logs.`
           : errText;
@@ -183,6 +194,36 @@ export default function MachineHubClient({ machine }) {
     } finally {
       setIsUploading(false);
       e.target.value = '';
+    }
+  };
+
+  // Export AI Chat to Report Database
+  const handleExportReport = async () => {
+    setIsExtracting(true);
+    try {
+      const response = await fetch('/api/reports/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: messages.map(m => ({ role: m.role, content: m.content })),
+          machineId: machine?.id,
+          sessionId: sessionId
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setDraftReport(data.report);
+        setActiveTab('reports'); 
+      } else {
+        alert('Extraction failed: ' + data.error);
+      }
+    } catch (error) {
+      console.error("Failed to export report", error);
+      alert('Network error while extracting report.');
+    } finally {
+      setIsExtracting(false);
     }
   };
 
@@ -202,9 +243,21 @@ export default function MachineHubClient({ machine }) {
               {machine?.brand_model || 'Not specified'}
             </span>
           </div>
+
+          {/* Dynamic Action Area (e.g., Export Button) */}
+          {activeTab === 'chat' && messages.length > 0 && (
+            <button
+              onClick={handleExportReport}
+              disabled={isExtracting}
+              className="flex items-center gap-2 bg-slate-800 text-[#D9FF00] hover:bg-slate-700 border border-slate-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+            >
+              {isExtracting ? <Loader2 size={14} className="animate-spin" /> : <ClipboardList size={14} />}
+              {isExtracting ? 'Drafting Report...' : 'Export to Report'}
+            </button>
+          )}
         </div>
 
-        <nav className="flex gap-6">
+        <nav className="flex gap-6 overflow-x-auto no-scrollbar">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
             const Icon = tab.icon;
@@ -212,7 +265,7 @@ export default function MachineHubClient({ machine }) {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`pb-2.5 text-sm font-medium transition-colors relative flex items-center gap-2 ${
+                className={`pb-2.5 text-sm font-medium transition-colors relative flex items-center gap-2 whitespace-nowrap ${
                   isActive ? 'text-[#D9FF00]' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -343,9 +396,12 @@ export default function MachineHubClient({ machine }) {
                 />
 
                 <div className="flex items-center gap-1 pb-1 pr-1">
-                  <button type="button" className="p-2.5 text-slate-400 hover:text-white transition-colors rounded-xl hover:bg-slate-800">
-                    <Mic size={20} />
-                  </button>
+                  {/* Replaced static mic with functioning Web MediaRecorder API */}
+                  <div className="mr-1">
+                    <VoiceRecordButton 
+                      onTranscriptionComplete={(transcript) => setText(prev => (prev + ' ' + transcript).trim())} 
+                    />
+                  </div>
                   <button 
                     type="submit"
                     disabled={!text.trim() || isLoading}
@@ -378,13 +434,13 @@ export default function MachineHubClient({ machine }) {
             {/* Upload Box */}
             <div className="border-2 border-dashed border-slate-700 hover:border-[#D9FF00]/50 rounded-xl p-8 text-center bg-[#131C31]/50 transition-colors">
               <input
-  type="file"
-  id="pdf-upload"
-  accept=".pdf,.txt,application/pdf,text/plain"
-  className="hidden"
-  onChange={handleFileUpload}
-  disabled={isUploading}
-/>
+                type="file"
+                id="pdf-upload"
+                accept=".pdf,.txt,application/pdf,text/plain"
+                className="hidden"
+                onChange={handleFileUpload}
+                disabled={isUploading}
+              />
               <label htmlFor="pdf-upload" className="cursor-pointer flex flex-col items-center gap-3">
                 {isUploading ? (
                   <Loader2 size={36} className="text-[#D9FF00] animate-spin" />
@@ -450,7 +506,7 @@ export default function MachineHubClient({ machine }) {
         {/* Work Orders Tab */}
         {activeTab === 'work-orders' && (
           <div className="p-8 text-slate-400">
-            Maintenance history and voice-logged reports will appear here.
+            Historical work orders will appear here.
           </div>
         )}
 
@@ -458,6 +514,13 @@ export default function MachineHubClient({ machine }) {
         {activeTab === 'parts' && (
           <div className="p-8 text-slate-400">
             Compatible spare parts and inventory counts will appear here.
+          </div>
+        )}
+
+        {/* New Reports Tab */}
+        {activeTab === 'reports' && (
+          <div className="h-full overflow-y-auto">
+            <ReportFormTab draftData={draftReport} machineId={machine?.id} />
           </div>
         )}
       </div>
