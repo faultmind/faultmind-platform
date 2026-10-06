@@ -1,7 +1,8 @@
-import { streamText, embed } from 'ai';
+import { streamText, embed, tool } from 'ai';
 import { google } from '@ai-sdk/google';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { z } from 'zod';
 
 export const maxDuration = 30;
 
@@ -44,7 +45,8 @@ export async function POST(req) {
     if (lastUserMessage && machineId) {
       try {
         const { embedding } = await embed({
-          model: openai.embedding('text-embedding-3-small'),
+          // Swapped to Google's embedding model to match our new database dimensions
+          model: google.textEmbeddingModel('text-embedding-004'),
           value: lastUserMessage.content,
         });
 
@@ -68,11 +70,16 @@ export async function POST(req) {
       }
     }
 
-    // 3. Assemble dynamic system prompt with grounded manual context
+    // 3. Assemble dynamic system prompt with grounded manual context and Reporting Rules
     const systemPrompt = `You are FaultMind, an expert AI diagnostic assistant for industrial control, automation, and maintenance engineers. 
 Your goal is to help maintenance engineers eliminate downtime and find the root cause of machine faults rapidly. 
 Provide highly technical, precise troubleshooting steps for industrial machinery, Variable Frequency Drives (VFDs), SCADA systems, and PLCs (including Siemens TIA Portal, WinCC, and Delta).
 Format your responses with clear, actionable bullet points. Avoid generic consumer IT advice.
+
+REPORTING MODE RULES:
+If the user is providing a maintenance shift log or fault report, extract the details into the 'updateReportForm' tool.
+If required fields (machine, root_cause, parts_replaced, downtime_minutes, technicians) are missing, ask the user a short, direct question to gather them.
+Cross-reference any mentioned parts with standard industrial formats.
 
 ${
   manualContext
@@ -80,13 +87,35 @@ ${
     : ''
 }`;
 
-    // 4. Stream response and save assistant message on completion
-    const result = await streamText({
+    // 4. Stream response (without awaiting) and enable Tool Calling
+    const result = streamText({
       model: google('gemini-1.5-flash'),
       system: systemPrompt,
       messages,
+      tools: {
+        updateReportForm: tool({
+          description: 'Extracts maintenance report data to silently update the live UI form in the background.',
+          parameters: z.object({
+            machine_id: z.string().optional().describe('The specific machine, equipment, or line name'),
+            root_cause: z.string().optional().describe('Brief technical description of the failure and how it was resolved'),
+            parts_replaced: z.array(z.string()).optional().describe('Specific part numbers or component names swapped (e.g., Siemens 3RT contactor, VFD)'),
+            downtime_minutes: z.number().optional().describe('Estimated duration of the machine downtime in minutes'),
+            technicians: z.array(z.string()).optional().describe('Names of the engineering staff involved in the fix'),
+          }),
+          execute: async (extractedData) => {
+            // Echoes the JSON back to the frontend immediately for the bottom sheet
+            return {
+              success: true,
+              timestamp: new Date().toISOString(),
+              data: extractedData
+            };
+          },
+        }),
+      },
       onFinish: async ({ text }) => {
-        if (machineId) {
+        // Only save the message if there is conversational text.
+        // (Tool calls without text don't need to be saved in the chat log)
+        if (machineId && text) {
           await supabase.from('machine_chats').insert({
             machine_id: machineId,
             user_id: user.id,
@@ -97,9 +126,8 @@ ${
       },
     });
 
-    return new Response(result.textStream, {
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-    });
+    // 5. Send data stream (includes text and tool calls)
+    return result.toDataStreamResponse();
   } catch (error) {
     console.error('FaultMind Chat API Error:', error);
     return new Response(`Server Crash Details: ${error.message}`, { status: 500 });
