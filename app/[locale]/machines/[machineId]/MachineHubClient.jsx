@@ -274,12 +274,12 @@ export default function MachineHubClient({ machine }) {
   
   <textarea 
     rows={1}
-    value={input}
-    onChange={(e) => setInput(e.target.value)}
+    value={input || ''}
+    onChange={handleInputChange}
     onKeyDown={(e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        e.currentTarget.form?.requestSubmit();
+        e.currentTarget.closest('form')?.requestSubmit();
       }
     }}
     placeholder="Describe the fault..."
@@ -289,7 +289,7 @@ export default function MachineHubClient({ machine }) {
   <div className="flex items-center gap-1 pb-1 pr-1">
     <div className="mr-1">
       <VoiceRecordButton 
-        onTranscriptionComplete={(transcript) => setInput((input + ' ' + transcript).trim())} 
+        onTranscriptionComplete={(transcript) => setInput(((input || '') + ' ' + transcript).trim())} 
       />
     </div>
     
@@ -305,7 +305,7 @@ export default function MachineHubClient({ machine }) {
     ) : (
       <button 
         type="submit" 
-        disabled={!input || input.trim() === ''} 
+        disabled={!input || input.trim().length === 0} 
         className="p-2.5 bg-[#D9FF00] hover:bg-[#c2e600] disabled:bg-slate-700 disabled:text-slate-500 text-slate-900 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
       >
         <Send size={18} className="translate-x-0.5" />
