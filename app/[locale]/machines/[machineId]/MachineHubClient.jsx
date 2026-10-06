@@ -223,4 +223,158 @@ export default function MachineHubClient({ machine }) {
               disabled={isExtracting}
               className="flex items-center gap-2 bg-slate-800 text-[#D9FF00] hover:bg-slate-700 border border-slate-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
             >
-              {isExtracting ? <Loader2 size={14} className="animate-spin" /> : <ClipboardList size={14
+              {isExtracting ? <Loader2 size={14} className="animate-spin" /> : <ClipboardList size={14} />}
+              {isExtracting ? 'Drafting Report...' : 'Export to Report'}
+            </button>
+          )}
+        </div>
+
+        <nav className="flex gap-6 overflow-x-auto no-scrollbar">
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`pb-2.5 text-sm font-medium transition-colors relative flex items-center gap-2 whitespace-nowrap ${
+                  isActive ? 'text-[#D9FF00]' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Icon size={14} />
+                {tab.label}
+                {isActive && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#D9FF00] shadow-[0_0_8px_rgba(217,255,0,0.5)]"></div>}
+              </button>
+            );
+          })}
+        </nav>
+      </header>
+
+      <div className="flex-1 overflow-hidden relative">
+        {activeTab === 'chat' && (
+          <div className="flex flex-col h-full max-w-4xl mx-auto w-full">
+            <div className="flex-1 overflow-y-auto p-8 space-y-6">
+              <div className="flex gap-4">
+                <div className="w-8 h-8 rounded-full bg-[#131C31] border border-slate-700 flex items-center justify-center shrink-0 mt-1">
+                  <Activity size={16} className="text-[#D9FF00]" />
+                </div>
+                <div className="flex-1 text-slate-300 leading-relaxed bg-[#131C31] p-4 rounded-2xl rounded-tl-none border border-slate-800">
+                  <p>I have loaded the diagnostic context for <span className="font-semibold text-white">{machine?.name}</span>. What issue or fault code are you seeing on the floor?</p>
+                </div>
+              </div>
+
+              {messages.map((m) => (
+                <div key={m.id} className={`flex gap-4 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  {m.role !== 'user' && (
+                    <div className="w-8 h-8 rounded-full bg-[#131C31] border border-slate-700 flex items-center justify-center shrink-0 mt-1">
+                      <Bot size={16} className="text-[#D9FF00]" />
+                    </div>
+                  )}
+                  
+                  <div className={`max-w-[80%] p-4 rounded-2xl leading-relaxed ${
+                    m.role === 'user'
+                      ? 'bg-[#D9FF00] text-slate-900 font-medium rounded-tr-none whitespace-pre-wrap'
+                      : 'bg-[#131C31] text-slate-200 border border-slate-800 rounded-tl-none overflow-x-auto'
+                  }`}>
+                    {m.role === 'user' ? (
+                      m.content
+                    ) : (
+                      <ReactMarkdown 
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          code({node, inline, className, children, ...props}) {
+                            const match = /language-(\w+)/.exec(className || '');
+                            return !inline && match ? (
+                              <SyntaxHighlighter style={vscDarkPlus} language={match[1]} PreTag="div" className="rounded-lg border border-slate-700 !my-4 !bg-[#0F172A]" {...props}>
+                                {String(children).replace(/\n$/, '')}
+                              </SyntaxHighlighter>
+                            ) : (
+                              <code className="bg-slate-800 text-[#D9FF00] px-1.5 py-0.5 rounded-md text-sm font-mono" {...props}>{children}</code>
+                            );
+                          }
+                        }}
+                      >
+                        {m.content}
+                      </ReactMarkdown>
+                    )}
+                  </div>
+
+                  {m.role === 'user' && (
+                    <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0 mt-1">
+                      <User size={16} className="text-slate-300" />
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {isLoading && (
+                <div className="flex gap-4 items-center">
+                  <div className="w-8 h-8 rounded-full bg-[#131C31] border border-slate-700 flex items-center justify-center shrink-0">
+                    <Activity size={16} className="text-[#D9FF00] animate-spin" />
+                  </div>
+                  <span className="text-xs text-slate-500 font-mono animate-pulse">Analyzing...</span>
+                </div>
+              )}
+              <div ref={chatBottomRef} />
+            </div>
+
+            <div className="p-6 shrink-0 bg-[#0F172A]">
+              <form 
+                onSubmit={handleSend}
+                className="relative flex items-end bg-[#1E293B] border border-slate-700 rounded-2xl p-2 shadow-lg focus-within:border-slate-500 transition-colors"
+              >
+                <button type="button" onClick={() => setActiveTab('documents')} className="p-3 text-slate-400 hover:text-[#D9FF00] transition-colors rounded-xl hover:bg-slate-800">
+                  <Paperclip size={20} />
+                </button>
+                
+                <textarea 
+                  rows={1}
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSend();
+                    }
+                  }}
+                  placeholder="Describe the fault..."
+                  className="w-full max-h-48 bg-transparent text-slate-200 placeholder-slate-500 resize-none outline-none py-3 px-2 font-sans"
+                />
+
+                <div className="flex items-center gap-1 pb-1 pr-1">
+                  <div className="mr-1">
+                    <VoiceRecordButton 
+                      onTranscriptionComplete={(transcript) => setText((prev) => (prev + ' ' + transcript).trim())} 
+                    />
+                  </div>
+                  
+                  {isLoading ? (
+                    <button 
+                      type="button" 
+                      onClick={stopChat}
+                      className="p-2.5 bg-red-500/20 hover:bg-red-500/40 text-red-500 border border-red-500/50 rounded-xl transition-colors"
+                      title="Stop AI Generation"
+                    >
+                      <Square size={18} fill="currentColor" />
+                    </button>
+                  ) : (
+                    <button 
+                      type="submit" 
+                      disabled={!text.trim()} 
+                      className="p-2.5 bg-[#D9FF00] hover:bg-[#c2e600] disabled:bg-slate-700 disabled:text-slate-500 text-slate-900 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
+                    >
+                      <Send size={18} className="translate-x-0.5" />
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'documents' && ( <div className="p-8 text-slate-400">Document Upload Active</div> )}
+        {activeTab === 'reports' && ( <div className="h-full overflow-y-auto"><ReportFormTab draftData={draftReport} machineId={machine?.id} /></div> )}
+      </div>
+    </div>
+  );
+}
