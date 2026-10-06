@@ -10,14 +10,14 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@ai-sdk/google": "^4.0.87",
+    "@ai-sdk/google": "^4.0.88",
     "@ai-sdk/openai": "^4.0.83",
-    "@ai-sdk/react": "^4.0.130",
+    "@ai-sdk/react": "^4.0.131",
     "@netlify/blobs": "^10.7.13",
     "@paddle/paddle-node-sdk": "^3.0.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.48.0",
-    "ai": "^7.0.127",
+    "ai": "^7.0.128",
     "blobshape": "^1.0.0",
     "bright": "^1.0.0",
     "class-variance-authority": "^0.7.1",
