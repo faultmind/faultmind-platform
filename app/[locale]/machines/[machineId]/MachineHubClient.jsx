@@ -265,53 +265,54 @@ export default function MachineHubClient({ machine }) {
 
             <div className="p-6 shrink-0 bg-[#0F172A]">
               <form 
-                onSubmit={handleSubmit}
-                className="relative flex items-end bg-[#1E293B] border border-slate-700 rounded-2xl p-2 shadow-lg focus-within:border-slate-500 transition-colors"
-              >
-                <button type="button" onClick={() => setActiveTab('documents')} className="p-3 text-slate-400 hover:text-[#D9FF00] transition-colors rounded-xl hover:bg-slate-800">
-                  <Paperclip size={20} />
-                </button>
-                
-                <textarea 
-                  rows={1}
-                  value={input}
-                  onChange={handleInputChange}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      e.currentTarget.form?.requestSubmit();
-                    }
-                  }}
-                  placeholder="Describe the fault..."
-                  className="w-full max-h-48 bg-transparent text-slate-200 placeholder-slate-500 resize-none outline-none py-3 px-2 font-sans"
-                />
+  onSubmit={handleSubmit}
+  className="relative flex items-end bg-[#1E293B] border border-slate-700 rounded-2xl p-2 shadow-lg focus-within:border-slate-500 transition-colors"
+>
+  <button type="button" onClick={() => setActiveTab('documents')} className="p-3 text-slate-400 hover:text-[#D9FF00] transition-colors rounded-xl hover:bg-slate-800">
+    <Paperclip size={20} />
+  </button>
+  
+  <textarea 
+    rows={1}
+    value={input}
+    onChange={(e) => setInput(e.target.value)}
+    onKeyDown={(e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        e.currentTarget.form?.requestSubmit();
+      }
+    }}
+    placeholder="Describe the fault..."
+    className="w-full max-h-48 bg-transparent text-slate-200 placeholder-slate-500 resize-none outline-none py-3 px-2 font-sans"
+  />
 
-                <div className="flex items-center gap-1 pb-1 pr-1">
-                  <div className="mr-1">
-                    <VoiceRecordButton 
-                      onTranscriptionComplete={(transcript) => setInput((input + ' ' + transcript).trim())} 
-                    />
-                  </div>
-                  {isLoading ? (
-                    <button 
-                      type="button" 
-                      onClick={stop}
-                      className="p-2.5 bg-red-500/20 hover:bg-red-500/40 text-red-500 border border-red-500/50 rounded-xl transition-colors"
-                      title="Stop AI Generation"
-                    >
-                      <Square size={18} fill="currentColor" />
-                    </button>
-                  ) : (
-                    <button 
-                      type="submit" 
-                      disabled={!input?.trim()} 
-                      className="p-2.5 bg-[#D9FF00] hover:bg-[#c2e600] disabled:bg-slate-700 disabled:text-slate-500 text-slate-900 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
-                    >
-                      <Send size={18} className="translate-x-0.5" />
-                    </button>
-                  )}
-                </div>
-              </form>
+  <div className="flex items-center gap-1 pb-1 pr-1">
+    <div className="mr-1">
+      <VoiceRecordButton 
+        onTranscriptionComplete={(transcript) => setInput((input + ' ' + transcript).trim())} 
+      />
+    </div>
+    
+    {isLoading ? (
+      <button 
+        type="button" 
+        onClick={stop}
+        className="p-2.5 bg-red-500/20 hover:bg-red-500/40 text-red-500 border border-red-500/50 rounded-xl transition-colors"
+        title="Stop AI Generation"
+      >
+        <Square size={18} fill="currentColor" />
+      </button>
+    ) : (
+      <button 
+        type="submit" 
+        disabled={!input || input.trim() === ''} 
+        className="p-2.5 bg-[#D9FF00] hover:bg-[#c2e600] disabled:bg-slate-700 disabled:text-slate-500 text-slate-900 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
+      >
+        <Send size={18} className="translate-x-0.5" />
+      </button>
+    )}
+  </div>
+</form>
             </div>
           </div>
         )}
