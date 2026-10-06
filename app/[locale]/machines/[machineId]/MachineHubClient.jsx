@@ -1,22 +1,11 @@
 'use client';
 
-const { messages, input, handleInputChange, handleSubmit, isLoading, setInput, setMessages, stop } = useChat({
-  api: '/api/chat',
-  body: { machineId: machine?.id, sessionId },
-  onError: (err) => alert(`Chat Error: ${err.message}`)
-});
-
-import { 
-  // ... your existing imports
-  Square 
-} from 'lucide-react';
-
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { 
   Paperclip, Mic, Send, Activity, FileText, Wrench, Package, 
   MessageSquare, Bot, User, UploadCloud, Loader2, CheckCircle2, AlertCircle,
-  ClipboardList
+  ClipboardList, Square
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -31,8 +20,8 @@ export default function MachineHubClient({ machine }) {
   const chatBottomRef = useRef(null);
   const sessionId = useRef(typeof crypto !== 'undefined' ? crypto.randomUUID() : Date.now().toString()).current;
 
-  // --- Official AI SDK Hook replacing custom fetch loop ---
-  const { messages, input, handleInputChange, handleSubmit, isLoading, setInput, setMessages } = useChat({
+  // --- Official AI SDK Hook ---
+  const { messages, input, handleInputChange, handleSubmit, isLoading, setInput, setMessages, stop } = useChat({
     api: '/api/chat',
     body: { machineId: machine?.id, sessionId },
     onError: (err) => alert(`Chat Error: ${err.message}`)
@@ -298,37 +287,36 @@ export default function MachineHubClient({ machine }) {
                 />
 
                 <div className="flex items-center gap-1 pb-1 pr-1">
-  <div className="mr-1">
-    <VoiceRecordButton 
-      onTranscriptionComplete={(transcript) => setInput((input + ' ' + transcript).trim())} 
-    />
-  </div>
-
-  {isLoading ? (
-    <button 
-      type="button" 
-      onClick={stop}
-      className="p-2.5 bg-red-500/20 hover:bg-red-500/40 text-red-500 border border-red-500/50 rounded-xl transition-colors"
-      title="Stop AI Generation"
-    >
-      <Square size={18} fill="currentColor" />
-    </button>
-  ) : (
-    <button 
-      type="submit" 
-      disabled={!input?.trim()} 
-      className="p-2.5 bg-[#D9FF00] hover:bg-[#c2e600] disabled:bg-slate-700 disabled:text-slate-500 text-slate-900 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
-    >
-      <Send size={18} className="translate-x-0.5" />
-    </button>
-  )}
-</div>
+                  <div className="mr-1">
+                    <VoiceRecordButton 
+                      onTranscriptionComplete={(transcript) => setInput((input + ' ' + transcript).trim())} 
+                    />
+                  </div>
+                  {isLoading ? (
+                    <button 
+                      type="button" 
+                      onClick={stop}
+                      className="p-2.5 bg-red-500/20 hover:bg-red-500/40 text-red-500 border border-red-500/50 rounded-xl transition-colors"
+                      title="Stop AI Generation"
+                    >
+                      <Square size={18} fill="currentColor" />
+                    </button>
+                  ) : (
+                    <button 
+                      type="submit" 
+                      disabled={!input?.trim()} 
+                      className="p-2.5 bg-[#D9FF00] hover:bg-[#c2e600] disabled:bg-slate-700 disabled:text-slate-500 text-slate-900 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
+                    >
+                      <Send size={18} className="translate-x-0.5" />
+                    </button>
+                  )}
+                </div>
               </form>
             </div>
           </div>
         )}
 
-        {/* Other Tabs Rendering unchanged ... */}
+        {/* Other Tabs */}
         {activeTab === 'documents' && ( <div className="p-8 text-slate-400">Document Upload Active</div> )}
         {activeTab === 'reports' && ( <div className="h-full overflow-y-auto"><ReportFormTab draftData={draftReport} machineId={machine?.id} /></div> )}
       </div>
