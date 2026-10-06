@@ -4,33 +4,26 @@ import { google } from '@ai-sdk/google';
 export async function POST(req) {
   try {
     const { messages } = await req.json();
-    console.log("1. Received chat request, generating stream...");
 
-    // 1. Generate the raw stream using Gemini
+    // 1. Safety Check
+    if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+      throw new Error("GOOGLE_GENERATIVE_AI_API_KEY is missing from environment variables.");
+    }
+
+    // 2. Stream Generation
     const result = await streamText({
-      model: google('gemini-1.5-pro-latest'),
-      system: `You are FaultMind, a highly skilled industrial automation and maintenance assistant. Provide clear, concise, step-by-step troubleshooting advice.`,
+      // Using the base model name to prevent 'deprecated alias' errors
+      model: google('gemini-1.5-pro'), 
+      system: `You are FaultMind, an industrial automation and maintenance assistant. Provide concise, step-by-step troubleshooting advice.`,
       messages: messages,
     });
 
-    console.log("2. Stream successfully opened, encoding to browser...");
-
-    // 2. Bypass Vercel's response formatters entirely.
-    // Manually pipe the string stream into a native byte stream.
-    const encoder = new TextEncoderStream();
-    const byteStream = result.textStream.pipeThrough(encoder);
-
-    // 3. Return a standard, pure Web API Response
-    return new Response(byteStream, {
-      headers: {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive'
-      }
-    });
+    // 3. Official Text Stream
+    return result.toTextStreamResponse();
     
   } catch (error) {
-    console.error("🚨 Chat API Fatal Error:", error);
-    return new Response(error.message || "Failed to process chat", { status: 500 });
+    console.error("🚨 BACKEND CRASH:", error);
+    // Send the raw error string back to the frontend so it prints in the chat bubble
+    return new Response(error.message || error.toString(), { status: 500 });
   }
 }

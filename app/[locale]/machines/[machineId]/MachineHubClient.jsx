@@ -147,13 +147,15 @@ export default function MachineHubClient({ machine }) {
     if (e) e.preventDefault();
     if (!text.trim() || isLoading) return;
     
-    const userMessage = { id: Date.now(), role: 'user', content: text };
-    setMessages((prev) => [...prev, userMessage]);
+    const userText = text;
     setText(''); // Instantly clear input
     setIsLoading(true);
 
+    const userMessage = { id: Date.now(), role: 'user', content: userText };
     const botMessageId = Date.now() + 1;
-    setMessages((prev) => [...prev, { id: botMessageId, role: 'assistant', content: '' }]);
+
+    // Optimistically push the user message and an empty bot bubble to the UI
+    setMessages((prev) => [...prev, userMessage, { id: botMessageId, role: 'assistant', content: '' }]);
 
     abortControllerRef.current = new AbortController();
 
@@ -169,28 +171,37 @@ export default function MachineHubClient({ machine }) {
         })
       });
       
+      // If the backend crashes, throw the exact error message
       if (!response.ok) {
-        throw new Error(await response.text());
+        const errorText = await response.text();
+        throw new Error(errorText || `HTTP ${response.status}`);
       }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let done = false;
+      let accumulatedText = ''; // <--- THE FIX: Build the string outside of React state
       
       while (!done) {
         const { value, done: readerDone } = await reader.read();
         done = readerDone;
         if (value) {
           const chunk = decoder.decode(value, { stream: true });
+          accumulatedText += chunk; 
+          
+          // Push the fully built string to the UI
           setMessages((prev) => prev.map(msg => 
-            msg.id === botMessageId ? { ...msg, content: msg.content + chunk } : msg
+            msg.id === botMessageId ? { ...msg, content: accumulatedText } : msg
           ));
         }
       }
     } catch (err) {
       if (err.name !== 'AbortError') {
-        console.error(err);
-        alert(`🚨 STREAM ERROR:\n\n${err.message}`);
+        console.error("Frontend Stream Error:", err);
+        // Print the exact error DIRECTLY into the AI chat bubble
+        setMessages((prev) => prev.map(msg => 
+          msg.id === botMessageId ? { ...msg, content: `🚨 ERROR: ${err.message}` } : msg
+        ));
       }
     } finally {
       setIsLoading(false);
