@@ -20,24 +20,25 @@ export default function MachineHubClient({ machine }) {
   const chatBottomRef = useRef(null);
   const sessionId = useRef(typeof crypto !== 'undefined' ? crypto.randomUUID() : Date.now().toString()).current;
 
-  // --- Official AI SDK Hook ---
-  const { messages, input, handleInputChange, handleSubmit, isLoading, setInput, setMessages, stop } = useChat({
+  // 1. Bulletproof Local Input State
+  const [text, setText] = useState('');
+
+  // 2. AI Hook (Using manual 'append' instead of the buggy input manager)
+  const { messages, append, isLoading, stop, setMessages } = useChat({
     api: '/api/chat',
     body: { machineId: machine?.id, sessionId },
     onError: (err) => alert(`Chat Error: ${err.message}`)
   });
 
-  // Documents State
+  // Documents & Reports State
   const [documents, setDocuments] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState(null); 
   const [uploadMsg, setUploadMsg] = useState('');
-
-  // Reporting State
   const [draftReport, setDraftReport] = useState(null);
   const [isExtracting, setIsExtracting] = useState(false);
 
-  // Fetch Chat History on mount
+  // Fetch Chat History
   useEffect(() => {
     const fetchHistory = async () => {
       if (!machine?.id) return;
@@ -45,9 +46,7 @@ export default function MachineHubClient({ machine }) {
         const res = await fetch(`/api/chat/history?machineId=${machine.id}`);
         if (res.ok) {
           const history = await res.json();
-          if (Array.isArray(history) && history.length > 0) {
-            setMessages(history);
-          }
+          if (Array.isArray(history) && history.length > 0) setMessages(history);
         }
       } catch (err) {
         console.error('Failed to load history:', err);
@@ -62,8 +61,7 @@ export default function MachineHubClient({ machine }) {
     try {
       const res = await fetch(`/api/documents?machineId=${machine.id}`);
       if (res.ok) {
-        const data = await res.json();
-        setDocuments(data);
+        setDocuments(await res.json());
       }
     } catch (err) {
       console.error('Failed to load documents:', err);
@@ -89,6 +87,7 @@ export default function MachineHubClient({ machine }) {
     { id: 'reports', label: 'Reports', icon: ClipboardList },
   ];
 
+  // Document Upload
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !machine?.id) return;
@@ -120,6 +119,7 @@ export default function MachineHubClient({ machine }) {
     }
   };
 
+  // Export Report
   const handleExportReport = async () => {
     setIsExtracting(true);
     try {
@@ -145,6 +145,16 @@ export default function MachineHubClient({ machine }) {
     } finally {
       setIsExtracting(false);
     }
+  };
+
+  // 3. Manual Submission Handler
+  const handleSend = (e) => {
+    if (e) e.preventDefault();
+    if (!text.trim() || isLoading) return;
+
+    // Send strictly via AI SDK manual append
+    append({ role: 'user', content: text });
+    setText(''); // Instantly clear input box
   };
 
   return (
@@ -265,54 +275,54 @@ export default function MachineHubClient({ machine }) {
 
             <div className="p-6 shrink-0 bg-[#0F172A]">
               <form 
-  onSubmit={handleSubmit}
-  className="relative flex items-end bg-[#1E293B] border border-slate-700 rounded-2xl p-2 shadow-lg focus-within:border-slate-500 transition-colors"
->
-  <button type="button" onClick={() => setActiveTab('documents')} className="p-3 text-slate-400 hover:text-[#D9FF00] transition-colors rounded-xl hover:bg-slate-800">
-    <Paperclip size={20} />
-  </button>
-  
-  <textarea 
-    rows={1}
-    value={input || ''}
-    onChange={handleInputChange}
-    onKeyDown={(e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        e.currentTarget.closest('form')?.requestSubmit();
-      }
-    }}
-    placeholder="Describe the fault..."
-    className="w-full max-h-48 bg-transparent text-slate-200 placeholder-slate-500 resize-none outline-none py-3 px-2 font-sans"
-  />
+                onSubmit={handleSend}
+                className="relative flex items-end bg-[#1E293B] border border-slate-700 rounded-2xl p-2 shadow-lg focus-within:border-slate-500 transition-colors"
+              >
+                <button type="button" onClick={() => setActiveTab('documents')} className="p-3 text-slate-400 hover:text-[#D9FF00] transition-colors rounded-xl hover:bg-slate-800">
+                  <Paperclip size={20} />
+                </button>
+                
+                <textarea 
+                  rows={1}
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSend();
+                    }
+                  }}
+                  placeholder="Describe the fault..."
+                  className="w-full max-h-48 bg-transparent text-slate-200 placeholder-slate-500 resize-none outline-none py-3 px-2 font-sans"
+                />
 
-  <div className="flex items-center gap-1 pb-1 pr-1">
-    <div className="mr-1">
-      <VoiceRecordButton 
-        onTranscriptionComplete={(transcript) => setInput(((input || '') + ' ' + transcript).trim())} 
-      />
-    </div>
-    
-    {isLoading ? (
-      <button 
-        type="button" 
-        onClick={stop}
-        className="p-2.5 bg-red-500/20 hover:bg-red-500/40 text-red-500 border border-red-500/50 rounded-xl transition-colors"
-        title="Stop AI Generation"
-      >
-        <Square size={18} fill="currentColor" />
-      </button>
-    ) : (
-      <button 
-        type="submit" 
-        disabled={!input || input.trim().length === 0} 
-        className="p-2.5 bg-[#D9FF00] hover:bg-[#c2e600] disabled:bg-slate-700 disabled:text-slate-500 text-slate-900 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
-      >
-        <Send size={18} className="translate-x-0.5" />
-      </button>
-    )}
-  </div>
-</form>
+                <div className="flex items-center gap-1 pb-1 pr-1">
+                  <div className="mr-1">
+                    <VoiceRecordButton 
+                      onTranscriptionComplete={(transcript) => setText((prev) => (prev + ' ' + transcript).trim())} 
+                    />
+                  </div>
+                  
+                  {isLoading ? (
+                    <button 
+                      type="button" 
+                      onClick={stop}
+                      className="p-2.5 bg-red-500/20 hover:bg-red-500/40 text-red-500 border border-red-500/50 rounded-xl transition-colors"
+                      title="Stop AI Generation"
+                    >
+                      <Square size={18} fill="currentColor" />
+                    </button>
+                  ) : (
+                    <button 
+                      type="submit" 
+                      disabled={!text.trim()} 
+                      className="p-2.5 bg-[#D9FF00] hover:bg-[#c2e600] disabled:bg-slate-700 disabled:text-slate-500 text-slate-900 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
+                    >
+                      <Send size={18} className="translate-x-0.5" />
+                    </button>
+                  )}
+                </div>
+              </form>
             </div>
           </div>
         )}
