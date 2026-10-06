@@ -127,7 +127,7 @@ ${
     });
 
     // 5. Send data stream (includes text and tool calls)
-    return result.toTextStreamResponse();
+    return result.toDataStreamResponse();
   } catch (error) {
     console.error('FaultMind Chat API Error:', error);
     return new Response(`Server Crash Details: ${error.message}`, { status: 500 });
