@@ -20,7 +20,7 @@ export async function POST(req) {
 
     if (machineId && machineId !== 'unknown') {
       const { data: docs, error: docError } = await supabase
-        .from('machine-documents')
+        .from('machine_documents')
         .select('*')
         .eq('machine_id', machineId);
 

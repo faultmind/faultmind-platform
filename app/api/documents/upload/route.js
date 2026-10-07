@@ -39,7 +39,7 @@ export async function POST(req) {
 
     // STEP 2: Only insert into the database if the file is physically in the bucket
     const { error: dbError } = await supabase
-      .from('machine-documents')
+      .from('machine_documents')
       .insert([{
         machine_id: machineId,
         file_name: fileName,

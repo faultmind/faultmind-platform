@@ -29,7 +29,7 @@ export async function POST(req) {
 
     // STEP 2: Delete the record from the database table
     const { error: dbError } = await supabase
-      .from('machine-documents')
+      .from('machine_documents')
       .delete()
       .eq('id', docId);
 
