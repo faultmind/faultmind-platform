@@ -113,6 +113,30 @@ export default function MachineHubClient({ machine }) {
       e.target.value = '';
     }
   };
+// Document Remove
+  const handleDeleteDoc = async (docId, storagePath) => {
+    const isConfirmed = window.confirm("Are you sure you want to delete this document?");
+    if (!isConfirmed) return;
+
+    try {
+      const res = await fetch('/api/documents/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ docId, storagePath }),
+      });
+
+      if (res.ok) {
+        // Refresh the document list after successful deletion
+        fetchDocs(); 
+      } else {
+        alert("Failed to delete document. Check the console.");
+      }
+    } catch (error) {
+      console.error("🚨 Delete request failed:", error);
+    }
+  };
 
   // Export Report
   const handleExportReport = async () => {
