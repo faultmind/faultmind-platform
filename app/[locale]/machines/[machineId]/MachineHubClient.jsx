@@ -383,7 +383,68 @@ export default function MachineHubClient({ machine }) {
           </div>
         )}
 
-        {activeTab === 'documents' && ( <div className="p-8 text-slate-400">Document Upload Active</div> )}
+        {activeTab === 'documents' && ( 
+        <div className="p-8 text-slate-400">
+        {activeTab === 'documents' && (
+  <div className="p-6 space-y-6 max-w-4xl">
+    {/* Upload Box */}
+    <div className="border-2 border-dashed border-slate-700 hover:border-yellow-400/50 rounded-xl p-8 text-center transition-colors bg-slate-900/50">
+      <input
+        type="file"
+        id="doc-upload"
+        className="hidden"
+        accept=".pdf,.txt,.doc,.docx"
+        onChange={handleFileUpload}
+      />
+      <label htmlFor="doc-upload" className="cursor-pointer flex flex-col items-center gap-2">
+        <svg className="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+        </svg>
+        <span className="text-sm font-medium text-slate-200">
+          Click to upload machine manuals, wiring diagrams, or STL logic
+        </span>
+        <span className="text-xs text-slate-500">PDF, TXT, DOCX up to 25MB</span>
+      </label>
+    </div>
+
+    {/* Document List */}
+    <div className="bg-slate-900/80 border border-slate-800 rounded-xl overflow-hidden">
+      <div className="p-4 border-b border-slate-800 flex justify-between items-center">
+        <h3 className="font-semibold text-sm text-slate-200">Indexed Machine Documents</h3>
+        <span className="text-xs text-slate-500">{documents?.length || 0} files</span>
+      </div>
+
+      {documents?.length === 0 ? (
+        <div className="p-8 text-center text-sm text-slate-500">
+          No documents uploaded for this machine yet.
+        </div>
+      ) : (
+        <ul className="divide-y divide-slate-800">
+          {documents?.map((doc) => (
+            <li key={doc.id} className="p-4 flex items-center justify-between hover:bg-slate-800/40">
+              <div className="flex items-center gap-3">
+                <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-yellow-400 font-mono">
+                  {doc.file_type || 'TXT'}
+                </span>
+                <span className="text-sm text-slate-200 font-medium">{doc.file_name}</span>
+              </div>
+              <div className="flex items-center gap-4 text-xs text-slate-400">
+                <span>{new Date(doc.created_at).toLocaleDateString()}</span>
+                <button 
+                  onClick={() => handleDeleteDoc(doc.id, doc.storage_path)}
+                  className="text-red-400 hover:text-red-300 transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  </div>
+)}
+        </div> )}
         {activeTab === 'reports' && ( <div className="h-full overflow-y-auto"><ReportFormTab draftData={draftReport} machineId={machine?.id} /></div> )}
       </div>
     </div>
