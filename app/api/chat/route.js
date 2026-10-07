@@ -24,7 +24,4 @@ export async function POST(req) {
     return new Response(error.message || error.toString(), { status: 500 });
   }
 }
-<<<<<<< HEAD
-// new route
-=======
->>>>>>> b18b337399f0238b75ed776218ececd4a376a140
+
