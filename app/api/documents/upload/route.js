@@ -12,6 +12,8 @@ export async function POST(req) {
     const formData = await req.formData();
     const file = formData.get('file');
     const machineId = formData.get('machineId');
+    // Extract the user ID sent from the frontend
+    const userId = formData.get('userId'); 
 
     if (!file || !machineId) {
       return NextResponse.json({ error: "Missing file or machine ID" }, { status: 400 });
@@ -37,11 +39,12 @@ export async function POST(req) {
       return NextResponse.json({ error: "Failed to upload to storage" }, { status: 500 });
     }
 
-    // STEP 2: Only insert into the database if the file is physically in the bucket
+    // STEP 2: Insert into database WITH the user_id
     const { error: dbError } = await supabase
       .from('machine_documents')
       .insert([{
         machine_id: machineId,
+        user_id: userId, // Added to satisfy your database schema
         file_name: fileName,
         storage_path: filePath,
         file_type: fileName.split('.').pop().toUpperCase()

@@ -94,6 +94,7 @@ export default function MachineHubClient({ machine }) {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('machineId', machine.id);
+    formData.append('userId', user.id);
 
     try {
       const res = await fetch('/api/documents/upload', { method: 'POST', body: formData });
