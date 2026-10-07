@@ -12,7 +12,7 @@ export async function POST(req) {
     // generateText forces the server to wait for Google's complete response,
     // guaranteeing that any hidden API rejections are successfully caught.
     const result = await generateText({
-      model: google('gemini-2.5-flash'), 
+      model: google('gemini-3.8-flash'), 
       system: `You are FaultMind, an industrial automation and maintenance assistant. Provide concise, step-by-step troubleshooting advice.`,
       messages: messages,
     });
