@@ -12,7 +12,7 @@ export async function POST(req) {
     // We are using generateText instead of streamText to FORCE 
     // any hidden Gemini API errors to be caught before sending the response.
     const result = await generateText({
-      model: google('gemini-1.5-pro'), 
+      model: google('gemini-1.5-flash'), 
       system: `You are FaultMind, an industrial automation and maintenance assistant. Provide concise, step-by-step troubleshooting advice.`,
       messages: messages,
     });
