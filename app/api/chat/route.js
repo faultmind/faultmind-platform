@@ -1,4 +1,4 @@
-import { streamText } from 'ai';
+import { generateText } from 'ai';
 import { google } from '@ai-sdk/google';
 
 export async function POST(req) {
@@ -9,19 +9,24 @@ export async function POST(req) {
       throw new Error("API Key is missing from environment variables.");
     }
 
-    // THE FIX: Switching to a universally supported model alias
-    const result = await streamText({
-      model: google('gemini-1.5-flash'), 
+    // We are using generateText instead of streamText to FORCE 
+    // any hidden Gemini API errors to be caught before sending the response.
+    const result = await generateText({
+      model: google('gemini-1.5-pro'), 
       system: `You are FaultMind, an industrial automation and maintenance assistant. Provide concise, step-by-step troubleshooting advice.`,
       messages: messages,
     });
 
-    // Send the stream back to our custom frontend decoder
-    return result.toTextStreamResponse();
+    // Send the complete text back. Your frontend's TextDecoder will still read this perfectly.
+    return new Response(result.text, { 
+      status: 200,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+    });
     
   } catch (error) {
-    console.error("🚨 BACKEND CRASH:", error);
+    console.error("🚨 TRAPPED GEMINI API ERROR:", error);
+    
+    // This will now trigger the red error bubble in your UI
     return new Response(error.message || error.toString(), { status: 500 });
   }
 }
-
