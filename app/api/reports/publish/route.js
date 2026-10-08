@@ -17,27 +17,28 @@ export async function POST(req) {
     const { data: { user }, error: authError } = await authClient.auth.getUser();
     if (!user || authError) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // 2. Parse form data
+// 2. Parse form data
     const body = await req.json();
-    const { machineId, rootCause, resolution, partsReplaced, partPrice, downtime, technicians } = body;
+    const { machineId, sessionId, rootCause, resolution, partsReplaced, partPrice, downtime, technicians } = body;
 
     if (!machineId) return NextResponse.json({ error: 'Machine ID is required' }, { status: 400 });
 
-// 3. Insert into database using the authenticated client (Passes RLS)
+    // 3. Insert into database using the authenticated client (Passes RLS)
     const { error: dbError } = await authClient
       .from('maintenance_reports')
       .insert([{
         machine_id: machineId,
+        session_id: sessionId,           // <-- Added session_id here
         user_id: user.id,
-        status: 'published',             // <-- 1. Explicitly mark as published
+        status: 'published',
         root_cause: rootCause,
-        resolution: resolution,          // <-- 2. Use your original table column
+        resolution: resolution,
         parts_replaced: partsReplaced,
         part_price: parseFloat(partPrice) || 0,
         downtime_minutes: parseInt(downtime) || 0,
         technicians: technicians
       }]);
-
+      
     if (dbError) throw dbError;
 
     return NextResponse.json({ success: true });

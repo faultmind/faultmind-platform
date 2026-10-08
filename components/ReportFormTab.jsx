@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { VoiceRecordButton } from './VoiceRecordButton';
 import { Loader2, CheckCircle2 } from 'lucide-react';
 
-export default function ReportFormTab({ draftData, machineId }) {
+export default function ReportFormTab({ draftData, machineId, sessionId }) {
   const [formData, setFormData] = useState({
     id: '',
     root_cause: '',
@@ -44,6 +44,7 @@ export default function ReportFormTab({ draftData, machineId }) {
     try {
       const payload = {
         machineId: machineId,
+        sessionId: sessionId,
         rootCause: formData.root_cause,
         resolution: formData.resolution,
         partsReplaced: formData.parts_replaced,

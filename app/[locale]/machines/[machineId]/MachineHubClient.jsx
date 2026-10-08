@@ -504,7 +504,7 @@ const handleFileUpload = async (e) => {
   </div>
 )}
         </div> )}
-        {activeTab === 'reports' && ( <div className="h-full overflow-y-auto"><ReportFormTab draftData={draftReport} machineId={machine?.id} /></div> )}
+       {activeTab === 'reports' && ( <div className="h-full overflow-y-auto"><ReportFormTab draftData={draftReport} machineId={machine?.id} sessionId={sessionId} /></div> )}
       </div>
       {/* start of Delete Confirmation Modal */}
 {/* Custom Delete Confirmation Modal */}
