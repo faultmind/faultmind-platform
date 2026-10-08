@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
-// Allow up to 60 seconds for large file uploads
 export const maxDuration = 60;
 
 export async function POST(req) {
   try {
     const cookieStore = await cookies();
     
-    // Initialize Supabase with cookies for secure auth
-    const supabase = createServerClient(
+    // 1. AUTH CLIENT: Securely read cookies to verify the user
+    const authClient = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
       {
@@ -22,8 +22,7 @@ export async function POST(req) {
       }
     );
 
-    // 1. Securely identify the user (No need to send this from the frontend)
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await authClient.auth.getUser();
     if (!user || authError) {
       return NextResponse.json({ error: 'Unauthorized: Please log in.' }, { status: 401 });
     }
@@ -39,8 +38,14 @@ export async function POST(req) {
     const fileName = file.name;
     const filePath = `${machineId}/${Date.now()}_${fileName}`;
 
-    // 2. Upload the heavy file natively to the Storage Bucket
-    const { error: uploadError } = await supabase.storage
+    // 2. ADMIN CLIENT: Use Service Role Key to bypass RLS for data writing
+    const adminClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    );
+
+    // 3. Upload to Bucket
+    const { error: uploadError } = await adminClient.storage
       .from('machine-docs')
       .upload(filePath, file, {
         contentType: file.type || 'application/octet-stream',
@@ -49,29 +54,33 @@ export async function POST(req) {
 
     if (uploadError) {
       console.error('🚨 Bucket Upload Error:', uploadError);
-      return NextResponse.json({ error: uploadError.message }, { status: 500 });
+      return NextResponse.json({ error: 'Storage upload failed' }, { status: 500 });
     }
 
-    // 3. Save only the lightweight metadata to the database table
-    const { error: dbError } = await supabase
+    // 4. Insert into Database
+    const { error: dbError } = await adminClient
       .from('machine_documents')
       .insert([{
         machine_id: machineId,
-        user_id: user.id, // Applied securely from the server session
+        user_id: user.id,
         file_name: fileName,
-        storage_path: filePath, // Tells the Chat API where to find it in the bucket
+        storage_path: filePath,
         file_type: fileName.split('.').pop().toUpperCase()
       }]);
 
+    // 5. Cleanup if Database fails
     if (dbError) {
       console.error('🚨 Database Insert Error:', dbError);
-      return NextResponse.json({ error: dbError.message }, { status: 500 });
+      // Delete the orphaned file from the bucket so we don't get copies!
+      await adminClient.storage.from('machine-docs').remove([filePath]);
+      
+      return NextResponse.json({ error: 'Database insert failed (Check terminal logs for missing columns)' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
 
   } catch (error) {
     console.error('🚨 Upload handler crash:', error);
-    return NextResponse.json({ error: error.message || 'Unknown server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
