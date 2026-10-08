@@ -30,25 +30,30 @@ export async function POST(req) {
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     );
 
+    // THE FIX: Prevent passing the string 'unknown' to a UUID database column
+    const validMachineId = (machineId && machineId !== 'unknown') ? machineId : null;
+
     // 3. Save the newest User message to the database immediately
     const latestUserMessage = messages[messages.length - 1];
     if (latestUserMessage && latestUserMessage.role === 'user') {
-      await adminClient.from('chat_messages').insert([{
-        machine_id: machineId,
+      const { error: userInsertError } = await adminClient.from('chat_messages').insert([{
+        machine_id: validMachineId,
         user_id: user.id,
         session_id: sessionId,
         role: 'user',
         content: latestUserMessage.content
       }]);
+      
+      if (userInsertError) console.error("🚨 DB ERROR (User Msg):", userInsertError);
     }
 
     // 4. Retrieve Document Context
     let machineContext = '';
-    if (machineId && machineId !== 'unknown') {
+    if (validMachineId) {
       const { data: docs, error: docError } = await adminClient
         .from('machine_documents')
         .select('file_name, storage_path')
-        .eq('machine_id', machineId);
+        .eq('machine_id', validMachineId);
 
       if (docError) console.error("🚨 SUPABASE ERROR:", docError);
 
@@ -69,7 +74,7 @@ export async function POST(req) {
     }
 
     const systemPrompt = `You are FaultMind, an industrial automation troubleshooting expert.
-Machine ID: ${machineId}
+Machine ID: ${validMachineId}
 
 ${machineContext 
   ? `CRITICAL INSTRUCTION: Analyze the exact PLC logic and tags below to answer:
@@ -88,13 +93,15 @@ RULES:
       system: systemPrompt,
       messages: messages,
       onFinish: async ({ text }) => {
-        await adminClient.from('chat_messages').insert([{
-          machine_id: machineId,
+        const { error: botInsertError } = await adminClient.from('chat_messages').insert([{
+          machine_id: validMachineId,
           user_id: user.id,
           session_id: sessionId,
           role: 'assistant',
           content: text
         }]);
+        
+        if (botInsertError) console.error("🚨 DB ERROR (Bot Msg):", botInsertError);
       }
     });
 

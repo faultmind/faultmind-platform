@@ -1,17 +1,10 @@
 import { generateObject } from 'ai';
 import { google } from '@ai-sdk/google';
 import { z } from 'zod';
-import { createClient } from '@supabase/supabase-js';
-
-// Initialize Supabase backend client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY // Use service role for backend admin inserts
-);
 
 export async function POST(req) {
   try {
-    const { messages, machineId, sessionId, userId } = await req.json();
+    const { messages } = await req.json();
 
     // 1. Extract the structured data using Gemini
     const { object: draftData } = await generateObject({
@@ -28,31 +21,8 @@ export async function POST(req) {
       }),
     });
 
-    // 2. Insert the extracted data directly into Supabase as a draft
-    const { data, error } = await supabase
-      .from('maintenance_reports')
-      .insert({
-        machine_id: machineId,
-        session_id: sessionId,
-        user_id: userId,
-        status: 'draft',
-        root_cause: draftData.root_cause,
-        resolution: draftData.resolution,
-        parts_replaced: draftData.parts_replaced,
-        part_price: draftData.part_price,
-        downtime_minutes: draftData.downtime_minutes,
-        technicians: draftData.technicians
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Supabase insertion error:', error);
-      return Response.json({ error: 'Failed to save draft to database.' }, { status: 500 });
-    }
-
-    // 3. Return the saved database record to the frontend
-    return Response.json({ success: true, report: data });
+    // 2. Return the extracted data directly to the frontend (No DB insert needed)
+    return Response.json({ success: true, report: draftData });
 
   } catch (error) {
     console.error('Extraction error:', error);
