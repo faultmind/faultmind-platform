@@ -18,7 +18,7 @@ export async function POST(req) {
 
     // 3. Extract the structured data
     const { object: draftData } = await generateObject({
-      model: google('gemini-1.5-pro-latest'), 
+      model: google('gemini-3.8-flash'), 
       system: 'You are an industrial maintenance assistant. Extract the requested troubleshooting details from the provided chat transcript. If a specific value like part price or downtime is not mentioned in the chat, return null.',
       messages: cleanMessages,
       schema: z.object({
