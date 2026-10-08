@@ -44,7 +44,9 @@ export async function POST(req) {
         content: latestUserMessage.content
       }]);
       
-      if (userInsertError) console.error("🚨 DB ERROR (User Msg):", userInsertError);
+      if (userInsertError) {
+        throw new Error(`DB Rejection: ${userInsertError.message} | ${userInsertError.hint || ''}`);
+      };
     }
 
     // 4. Retrieve Document Context
