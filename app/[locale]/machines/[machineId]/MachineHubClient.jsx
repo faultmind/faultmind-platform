@@ -1,6 +1,7 @@
 'use client';
 
 import { createBrowserClient } from '@supabase/ssr';
+import ReportHistory from '@/components/ReportHistory';
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -504,7 +505,11 @@ const handleFileUpload = async (e) => {
   </div>
 )}
         </div> )}
-       {activeTab === 'reports' && ( <div className="h-full overflow-y-auto"><ReportFormTab draftData={draftReport} machineId={machine?.id} sessionId={sessionId} /></div> )}
+       {activeTab === 'reports' && ( 
+        <div className="h-full overflow-y-auto">
+          <ReportFormTab draftData={draftReport} machineId={machine?.id} sessionId={sessionId} />
+          <ReportHistory machineId={machine?.id} />
+          </div> )}
       </div>
       {/* start of Delete Confirmation Modal */}
 {/* Custom Delete Confirmation Modal */}
