@@ -6,22 +6,18 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { VoiceRecordButton } from './VoiceRecordButton';
-import { Loader2, CheckCircle2 } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function ReportFormTab({ draftData, machineId, sessionId }) {
   const [formData, setFormData] = useState({
-    id: '',
-    root_cause: '',
-    resolution: '',
-    parts_replaced: '',
-    part_price: '',
-    downtime_minutes: '',
-    technicians: '',
+    id: '', root_cause: '', resolution: '', parts_replaced: '', 
+    part_price: '', downtime_minutes: '', technicians: '',
   });
   const [isPublishing, setIsPublishing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  // Pre-fill the form whenever new draft data arrives from the AI extraction
+  // Pre-fill the form whenever new draft data arrives
   useEffect(() => {
     if (draftData) {
       setFormData({
@@ -38,7 +34,12 @@ export default function ReportFormTab({ draftData, machineId, sessionId }) {
 
   const handlePublish = async (e) => {
     e.preventDefault();
-    if (!machineId) return alert('Machine ID is missing.');
+    setErrorMessage(''); // Clear previous errors
+    
+    if (!machineId) {
+      setErrorMessage('System Error: Machine ID is missing. Please refresh the page.');
+      return;
+    }
     
     setIsPublishing(true);
     try {
@@ -60,22 +61,21 @@ export default function ReportFormTab({ draftData, machineId, sessionId }) {
       });
       
       if (response.ok) {
-        // Trigger the sleek banner
         setShowSuccess(true);
         setTimeout(() => setShowSuccess(false), 4000); 
-        
-        // Clear the form after successful submission
         setFormData({
           id: '', root_cause: '', resolution: '', parts_replaced: '', 
           part_price: '', downtime_minutes: '', technicians: ''
         });
       } else {
+        // Log silently for debugging, show clean message to user
         const errorData = await response.json();
-        alert(`Failed to publish: ${errorData.error || 'Unknown error'}`);
+        console.error("Publish error payload:", errorData);
+        setErrorMessage('Failed to log report. Please verify your connection and try again.');
       }
     } catch (error) {
-      console.error('Failed to publish', error);
-      alert(`Network Error: ${error.message}`);
+      console.error('Network failure:', error);
+      setErrorMessage('Network Error: Unable to reach the server.');
     } finally {
       setIsPublishing(false);
     }
@@ -91,14 +91,21 @@ export default function ReportFormTab({ draftData, machineId, sessionId }) {
       {/* Sleek Success Banner */}
       {showSuccess && (
         <div className="mb-8 p-4 bg-[#D9FF00]/10 border border-[#D9FF00] text-[#D9FF00] rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
-          <CheckCircle2 className="w-5 h-5" />
+          <CheckCircle2 className="w-5 h-5 shrink-0" />
           <span className="font-semibold">Shift report officially logged to the database.</span>
+        </div>
+      )}
+
+      {/* Professional Error Banner */}
+      {errorMessage && (
+        <div className="mb-8 p-4 bg-red-500/10 border border-red-500/50 text-red-400 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+          <AlertCircle className="w-5 h-5 shrink-0" />
+          <span className="font-semibold">{errorMessage}</span>
         </div>
       )}
 
       <form onSubmit={handlePublish} className="space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Left Column */}
           <div className="space-y-5">
             <div>
               <Label className="text-slate-300 text-xs uppercase tracking-wider font-semibold">Root Cause</Label>
@@ -106,7 +113,6 @@ export default function ReportFormTab({ draftData, machineId, sessionId }) {
                 value={formData.root_cause}
                 onChange={e => setFormData({...formData, root_cause: e.target.value})}
                 className="bg-[#131C31] border-slate-700 mt-1.5 focus-visible:ring-[#D9FF00]" 
-                placeholder="e.g., VFD Overvoltage Trip"
               />
             </div>
 
@@ -123,7 +129,6 @@ export default function ReportFormTab({ draftData, machineId, sessionId }) {
                 value={formData.resolution}
                 onChange={e => setFormData({...formData, resolution: e.target.value})}
                 className="bg-[#131C31] border-slate-700 min-h-[120px] focus-visible:ring-[#D9FF00] resize-y" 
-                placeholder="Describe the steps taken to fix the issue..."
               />
             </div>
             
@@ -133,12 +138,10 @@ export default function ReportFormTab({ draftData, machineId, sessionId }) {
                 value={formData.parts_replaced}
                 onChange={e => setFormData({...formData, parts_replaced: e.target.value})}
                 className="bg-[#131C31] border-slate-700 mt-1.5 focus-visible:ring-[#D9FF00]" 
-                placeholder="e.g., Cooling Fan 24V"
               />
             </div>
           </div>
 
-          {/* Right Column */}
           <div className="space-y-5">
             <div>
               <Label className="text-slate-300 text-xs uppercase tracking-wider font-semibold">Part Price</Label>
@@ -148,7 +151,6 @@ export default function ReportFormTab({ draftData, machineId, sessionId }) {
                 value={formData.part_price}
                 onChange={e => setFormData({...formData, part_price: e.target.value})}
                 className="bg-[#131C31] border-slate-700 mt-1.5 focus-visible:ring-[#D9FF00]" 
-                placeholder="0.00"
               />
             </div>
 
@@ -159,7 +161,6 @@ export default function ReportFormTab({ draftData, machineId, sessionId }) {
                 value={formData.downtime_minutes}
                 onChange={e => setFormData({...formData, downtime_minutes: e.target.value})}
                 className="bg-[#131C31] border-slate-700 mt-1.5 focus-visible:ring-[#D9FF00]" 
-                placeholder="45"
               />
             </div>
 
@@ -169,7 +170,6 @@ export default function ReportFormTab({ draftData, machineId, sessionId }) {
                 value={formData.technicians}
                 onChange={e => setFormData({...formData, technicians: e.target.value})}
                 className="bg-[#131C31] border-slate-700 mt-1.5 focus-visible:ring-[#D9FF00]" 
-                placeholder="e.g., M. Madi, Ali"
               />
             </div>
           </div>
