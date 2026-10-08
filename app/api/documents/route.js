@@ -16,17 +16,17 @@ export async function GET(req) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return new Response('Unauthorized', { status: 401 });
 
-    // Retrieve unique document names for this machine
+    // Retrieve ALL necessary columns (id, file_type, and storage_path added)
     const { data, error } = await supabase
       .from('machine_documents')
-      .select('file_name, created_at')
+      .select('id, file_name, file_type, storage_path, created_at')
       .eq('machine_id', machineId)
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
 
-    // Deduplicate by file_name
+    // Deduplicate by file_name (keeps the most recent due to the order clause)
     const uniqueFiles = [];
     const seen = new Set();
     data.forEach(item => {
