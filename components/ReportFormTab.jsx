@@ -1,19 +1,12 @@
 'use client';
 
-// Add CheckCircle2 to your lucide-react import
-import { Loader2, CheckCircle2 } from 'lucide-react';
-
-export default function ReportFormTab({ draftData, machineId }) {
-  // Add this new state variable
-  const [showSuccess, setShowSuccess] = useState(false);
-  // ... existing states ...
 import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { VoiceRecordButton } from './VoiceRecordButton';
-import { Loader2 } from 'lucide-react';
+import { Loader2, CheckCircle2 } from 'lucide-react';
 
 export default function ReportFormTab({ draftData, machineId }) {
   const [formData, setFormData] = useState({
@@ -26,6 +19,7 @@ export default function ReportFormTab({ draftData, machineId }) {
     technicians: '',
   });
   const [isPublishing, setIsPublishing] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   // Pre-fill the form whenever new draft data arrives from the AI extraction
   useEffect(() => {
@@ -48,7 +42,6 @@ export default function ReportFormTab({ draftData, machineId }) {
     
     setIsPublishing(true);
     try {
-      // Map the frontend state to match the exact keys expected by the backend
       const payload = {
         machineId: machineId,
         rootCause: formData.root_cause,
@@ -66,17 +59,10 @@ export default function ReportFormTab({ draftData, machineId }) {
       });
       
       if (response.ok) {
-        if (response.ok) {
-        // Trigger the sleek banner instead of the alert
+        // Trigger the sleek banner
         setShowSuccess(true);
-        setTimeout(() => setShowSuccess(false), 4000); // Auto-hide after 4 seconds
+        setTimeout(() => setShowSuccess(false), 4000); 
         
-        // Clear the form after successful submission
-        setFormData({
-          id: '', root_cause: '', resolution: '', parts_replaced: '', 
-          part_price: '', downtime_minutes: '', technicians: ''
-        });
-      }
         // Clear the form after successful submission
         setFormData({
           id: '', root_cause: '', resolution: '', parts_replaced: '', 
@@ -100,16 +86,14 @@ export default function ReportFormTab({ draftData, machineId }) {
         <h2 className="text-2xl font-bold text-white tracking-tight">Shift Maintenance Log</h2>
         <p className="text-sm text-slate-400 mt-1">Review AI-extracted details or manually dictate your repair report.</p>
       </div>
-{/* Sleek Success Banner */}
+
+      {/* Sleek Success Banner */}
       {showSuccess && (
         <div className="mb-8 p-4 bg-[#D9FF00]/10 border border-[#D9FF00] text-[#D9FF00] rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
           <CheckCircle2 className="w-5 h-5" />
           <span className="font-semibold">Shift report officially logged to the database.</span>
         </div>
       )}
-
-      <form onSubmit={handlePublish} className="space-y-8"></form>
-
 
       <form onSubmit={handlePublish} className="space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
