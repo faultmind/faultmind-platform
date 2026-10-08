@@ -37,24 +37,41 @@ export default function ReportFormTab({ draftData, machineId }) {
 
   const handlePublish = async (e) => {
     e.preventDefault();
-    if (!formData.id) return alert('No draft selected to publish.');
+    if (!machineId) return alert('Machine ID is missing.');
     
     setIsPublishing(true);
     try {
-      // Sends the final reviewed data to update the draft status to 'published'
+      // Map the frontend state to match the exact keys expected by the backend
+      const payload = {
+        machineId: machineId,
+        rootCause: formData.root_cause,
+        resolution: formData.resolution,
+        partsReplaced: formData.parts_replaced,
+        partPrice: formData.part_price,
+        downtime: formData.downtime_minutes,
+        technicians: formData.technicians
+      };
+
       const response = await fetch('/api/reports/publish', {
-        method: 'PUT',
+        method: 'POST', 
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
       
       if (response.ok) {
         alert('Shift report officially logged!');
+        // Clear the form after successful submission
+        setFormData({
+          id: '', root_cause: '', resolution: '', parts_replaced: '', 
+          part_price: '', downtime_minutes: '', technicians: ''
+        });
       } else {
-        alert('Failed to publish report.');
+        const errorData = await response.json();
+        alert(`Failed to publish: ${errorData.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Failed to publish', error);
+      alert(`Network Error: ${error.message}`);
     } finally {
       setIsPublishing(false);
     }
@@ -149,7 +166,7 @@ export default function ReportFormTab({ draftData, machineId }) {
         <div className="flex justify-end pt-6 border-t border-slate-800">
           <Button 
             type="submit" 
-            disabled={isPublishing || !formData.id}
+            disabled={isPublishing || !machineId}
             className="bg-[#D9FF00] text-black hover:bg-[#c8eb00] font-bold px-8 h-11"
           >
             {isPublishing ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : null}
