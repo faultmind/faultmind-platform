@@ -134,7 +134,7 @@ const handleFileUpload = async (e) => {
     }
   };
 // Document Remove
-  const handleDeleteDoc = async (docId, storagePath) => {
+const handleDeleteDoc = async (docId, storagePath) => {
     const isConfirmed = window.confirm("Are you sure you want to delete this document?");
     if (!isConfirmed) return;
 
@@ -148,13 +148,14 @@ const handleFileUpload = async (e) => {
       });
 
       if (res.ok) {
-        // Refresh the document list after successful deletion
         fetchDocs(); 
       } else {
-        alert("Failed to delete document. Check the console.");
+        // Read the exact error from the backend instead of a generic alert
+        const errorData = await res.json();
+        alert(`Delete Failed: ${errorData.error || 'Unknown database error'}`);
       }
     } catch (error) {
-      console.error("🚨 Delete request failed:", error);
+      alert(`Network Error: ${error.message}`);
     }
   };
 
