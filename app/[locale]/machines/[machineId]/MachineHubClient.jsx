@@ -135,7 +135,10 @@ const handleFileUpload = async (e) => {
   };
 // Document Remove
 const handleDeleteDoc = async (docId, storagePath) => {
-    const isConfirmed = window.confirm("Are you sure you want to delete this document?");
+    // A more professional, descriptive confirmation message
+    const confirmMessage = "WARNING: You are about to permanently delete this document.\n\nThis will remove the file from the machine's diagnostic context and delete it from cloud storage. This action cannot be undone.\n\nProceed with deletion?";
+    
+    const isConfirmed = window.confirm(confirmMessage);
     if (!isConfirmed) return;
 
     try {
@@ -150,9 +153,8 @@ const handleDeleteDoc = async (docId, storagePath) => {
       if (res.ok) {
         fetchDocs(); 
       } else {
-        // Read the exact error from the backend instead of a generic alert
         const errorData = await res.json();
-        alert(`Delete Failed: ${errorData.error || 'Unknown database error'}`);
+        alert(`Deletion Failed: ${errorData.error || 'Unknown database error'}`);
       }
     } catch (error) {
       alert(`Network Error: ${error.message}`);
