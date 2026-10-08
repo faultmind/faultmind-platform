@@ -1,59 +1,77 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
+// Allow up to 60 seconds for large file uploads
+export const maxDuration = 60;
 
 export async function POST(req) {
   try {
+    const cookieStore = await cookies();
+    
+    // Initialize Supabase with cookies for secure auth
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll();
+          },
+        },
+      }
+    );
+
+    // 1. Securely identify the user (No need to send this from the frontend)
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (!user || authError) {
+      return NextResponse.json({ error: 'Unauthorized: Please log in.' }, { status: 401 });
+    }
+
     const formData = await req.formData();
     const file = formData.get('file');
     const machineId = formData.get('machineId');
-    const userId = formData.get('userId');
 
     if (!file || !machineId) {
-      return NextResponse.json({ error: "Missing file or machine ID" }, { status: 400 });
+      return NextResponse.json({ error: 'Missing file or machine ID' }, { status: 400 });
     }
 
     const fileName = file.name;
     const filePath = `${machineId}/${Date.now()}_${fileName}`;
 
-    // STEP 1: Pass the raw native 'file' object directly. 
-    // Do not convert to Buffer.
+    // 2. Upload the heavy file natively to the Storage Bucket
     const { error: uploadError } = await supabase.storage
       .from('machine-docs')
       .upload(filePath, file, {
-        contentType: file.type || 'text/plain',
+        contentType: file.type || 'application/octet-stream',
         upsert: false
       });
 
     if (uploadError) {
-      console.error("🚨 Storage upload error:", uploadError);
+      console.error('🚨 Bucket Upload Error:', uploadError);
       return NextResponse.json({ error: uploadError.message }, { status: 500 });
     }
 
-    // STEP 2: Database insert
+    // 3. Save only the lightweight metadata to the database table
     const { error: dbError } = await supabase
       .from('machine_documents')
       .insert([{
         machine_id: machineId,
-        user_id: userId,
+        user_id: user.id, // Applied securely from the server session
         file_name: fileName,
-        storage_path: filePath,
+        storage_path: filePath, // Tells the Chat API where to find it in the bucket
         file_type: fileName.split('.').pop().toUpperCase()
       }]);
 
     if (dbError) {
-      console.error("🚨 Database insert error:", dbError);
+      console.error('🚨 Database Insert Error:', dbError);
       return NextResponse.json({ error: dbError.message }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
 
   } catch (error) {
-    console.error("🚨 Upload handler crash:", error);
-    return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 });
+    console.error('🚨 Upload handler crash:', error);
+    return NextResponse.json({ error: error.message || 'Unknown server error' }, { status: 500 });
   }
 }
