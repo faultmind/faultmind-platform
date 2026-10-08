@@ -2,6 +2,9 @@ import { streamText } from 'ai';
 import { google } from '@ai-sdk/google';
 import { createClient } from '@supabase/supabase-js';
 
+// Allow extended execution time for large file downloads 
+export const maxDuration = 60;
+
 // Use the Service Role Key on the server to bypass RLS restrictions
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -21,7 +24,7 @@ export async function POST(req) {
     if (machineId && machineId !== 'unknown') {
       const { data: docs, error: docError } = await supabase
         .from('machine_documents')
-        .select('*')
+        .select('file_name, storage_path') // Query only the necessary columns
         .eq('machine_id', machineId);
 
       console.log("🔍 SUPABASE DOCS FOUND:", docs);
@@ -30,14 +33,13 @@ export async function POST(req) {
       if (docs && docs.length > 0) {
         const parts = [];
         for (const doc of docs) {
-          if (doc.content) {
-            parts.push(`--- FILE: ${doc.file_name} ---\n${doc.content}`);
-          } else if (doc.storage_path) {
+          // Rely exclusively on the storage bucket now that the content column is dropped
+          if (doc.storage_path) {
             const { data: fileBlob, error: storageErr } = await supabase.storage
               .from('machine-docs')
               .download(doc.storage_path);
 
-            if (storageErr) console.error("🚨 STORAGE DOWNLOAD ERROR:", storageErr);
+            if (storageErr) console.error(`🚨 STORAGE DOWNLOAD ERROR FOR ${doc.file_name}:`, storageErr);
 
             if (fileBlob) {
               const text = await fileBlob.text();
