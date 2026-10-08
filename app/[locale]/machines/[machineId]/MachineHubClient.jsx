@@ -39,6 +39,9 @@ export default function MachineHubClient({ machine }) {
   const [uploadMsg, setUploadMsg] = useState('');
   const [draftReport, setDraftReport] = useState(null);
   const [isExtracting, setIsExtracting] = useState(false);
+  // Delete Modal State
+  const [docToDelete, setDocToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Fetch Chat History
   useEffect(() => {
@@ -134,23 +137,25 @@ const handleFileUpload = async (e) => {
     }
   };
 // Document Remove
-const handleDeleteDoc = async (docId, storagePath) => {
-    // A more professional, descriptive confirmation message
-    const confirmMessage = "WARNING: You are about to permanently delete this document.\n\nThis will remove the file from the machine's diagnostic context and delete it from cloud storage. This action cannot be undone.\n\nProceed with deletion?";
-    
-    const isConfirmed = window.confirm(confirmMessage);
-    if (!isConfirmed) return;
+// Opens the custom modal
+  const handleDeleteClick = (doc) => {
+    setDocToDelete(doc);
+  };
+
+  // Executes the deletion
+  const confirmDelete = async () => {
+    if (!docToDelete) return;
+    setIsDeleting(true);
 
     try {
       const res = await fetch('/api/documents/delete', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ docId, storagePath }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ docId: docToDelete.id, storagePath: docToDelete.storage_path }),
       });
 
       if (res.ok) {
+        setDocToDelete(null);
         fetchDocs(); 
       } else {
         const errorData = await res.json();
@@ -158,6 +163,8 @@ const handleDeleteDoc = async (docId, storagePath) => {
       }
     } catch (error) {
       alert(`Network Error: ${error.message}`);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -478,11 +485,11 @@ const handleDeleteDoc = async (docId, storagePath) => {
               <div className="flex items-center gap-4 text-xs text-slate-400">
                 <span>{new Date(doc.created_at).toLocaleDateString()}</span>
                 <button 
-                  onClick={() => handleDeleteDoc(doc.id, doc.storage_path)}
-                  className="text-red-400 hover:text-red-300 transition-colors"
-                >
-                  Delete
-                </button>
+    onClick={() => handleDeleteClick(doc)}
+    className="text-red-400 hover:text-red-300 transition-colors"
+  >
+    Delete
+  </button>
               </div>
             </li>
           ))}
@@ -494,6 +501,45 @@ const handleDeleteDoc = async (docId, storagePath) => {
         </div> )}
         {activeTab === 'reports' && ( <div className="h-full overflow-y-auto"><ReportFormTab draftData={draftReport} machineId={machine?.id} /></div> )}
       </div>
+      // start of Delete Confirmation Modal
+{/* Custom Delete Confirmation Modal */}
+      {docToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-[#131C31] border border-slate-700 rounded-2xl p-6 w-full max-w-md shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center shrink-0">
+                <AlertCircle size={20} className="text-red-400" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-200">Delete Document</h3>
+            </div>
+            
+            <p className="text-slate-400 text-sm leading-relaxed mb-6">
+              Are you sure you want to permanently delete <span className="text-slate-200 font-semibold">{docToDelete.file_name}</span>? This will remove it from the diagnostic context and cloud storage. This action cannot be undone.
+            </p>
+            
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setDocToDelete(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-800 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={isDeleting}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 hover:border-red-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isDeleting && <Loader2 size={16} className="animate-spin" />}
+                {isDeleting ? 'Deleting...' : 'Delete Permanently'}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+      // end of Delete Confirmation Modal
     </div>
   );
 }
