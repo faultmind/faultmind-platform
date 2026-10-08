@@ -20,7 +20,7 @@ export async function POST(req) {
 
     // 2. Pass the transcript as a single prompt instead of a message array
     const { object: draftData } = await generateObject({
-      model: google('gemini-1.5-flash'), // Or 'gemini-3.8-flash' if that is what works on your tier
+      model: google('gemini-3.8-flash'), // Or 'gemini-3.8-flash' if that is what works on your tier
       prompt: `You are an industrial maintenance assistant. Extract the requested troubleshooting details from the following chat transcript. If a specific value like part price or downtime is not mentioned, return null.
 
 TRANSCRIPT:
