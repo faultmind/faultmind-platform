@@ -3,13 +3,20 @@ import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
+// REQUIRED for Next.js to handle heavy file buffers properly
+export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 export async function POST(req) {
+  console.log("\n========================================");
+  console.log("🚀 UPLOAD PIPELINE STARTED");
+  console.log("========================================");
+
   try {
     const cookieStore = await cookies();
     
-    // 1. Check user auth
+    // STEP 1: Verify Auth
+    console.log("⏳ [1/4] Checking User Auth...");
     const authClient = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
@@ -18,31 +25,36 @@ export async function POST(req) {
 
     const { data: { user }, error: authError } = await authClient.auth.getUser();
     if (!user || authError) {
-      return NextResponse.json({ error: 'Auth Error: Unauthorized or not logged in.' }, { status: 401 });
+      console.log("❌ AUTH FAILED:", authError);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    console.log("✅ USER VERIFIED:", user.id);
 
+    // STEP 2: Parse File
+    console.log("⏳ [2/4] Parsing Form Data...");
     const formData = await req.formData();
     const file = formData.get('file');
     const machineId = formData.get('machineId');
 
     if (!file || !machineId) {
-      return NextResponse.json({ error: 'Validation Error: Missing file or machine ID.' }, { status: 400 });
+      console.log("❌ MISSING DATA: file or machineId is null");
+      return NextResponse.json({ error: 'Missing data' }, { status: 400 });
     }
-
+    
     const fileName = file.name;
     const filePath = `${machineId}/${Date.now()}_${fileName}`;
+    console.log("✅ FILE RECEIVED:", fileName, "| Machine:", machineId);
 
-    // 2. Admin client to bypass RLS
+    // STEP 3: Upload to Bucket
+    console.log("⏳ [3/4] Uploading to Storage Bucket...");
     const adminClient = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     );
 
-    // Convert to ArrayBuffer explicitly (fixes Node/Vercel File object parsing bugs)
     const arrayBuffer = await file.arrayBuffer();
-    const fileBody = new Uint8Array(arrayBuffer);
+    const fileBody = Buffer.from(arrayBuffer); // Using Node Buffer safely now
 
-    // 3. Upload to bucket
     const { error: uploadError } = await adminClient.storage
       .from('machine-docs')
       .upload(filePath, fileBody, {
@@ -51,10 +63,13 @@ export async function POST(req) {
       });
 
     if (uploadError) {
-      return NextResponse.json({ error: `Storage Error: ${uploadError.message}` }, { status: 500 });
+      console.log("❌ BUCKET UPLOAD FAILED:", uploadError);
+      return NextResponse.json({ error: uploadError.message }, { status: 500 });
     }
+    console.log("✅ BUCKET UPLOAD SUCCESS!");
 
-    // 4. Insert into database
+    // STEP 4: Insert Database Record
+    console.log("⏳ [4/4] Writing to Database Table...");
     const { error: dbError } = await adminClient
       .from('machine_documents')
       .insert([{
@@ -66,14 +81,17 @@ export async function POST(req) {
       }]);
 
     if (dbError) {
-      // Cleanup the stranded file
+      console.log("❌ DATABASE INSERT FAILED:", dbError);
+      console.log("🧹 Cleaning up stranded bucket file...");
       await adminClient.storage.from('machine-docs').remove([filePath]);
-      return NextResponse.json({ error: `Database Error: ${dbError.message}` }, { status: 500 });
+      return NextResponse.json({ error: dbError.message }, { status: 500 });
     }
 
+    console.log("🎉 ALL STEPS COMPLETED SUCCESSFULLY!\n");
     return NextResponse.json({ success: true });
 
   } catch (error) {
-    return NextResponse.json({ error: `Server Crash: ${error.message}` }, { status: 500 });
+    console.log("🔥 FATAL SERVER CRASH:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
