@@ -29,8 +29,9 @@ export async function POST(req) {
       .insert([{
         machine_id: machineId,
         user_id: user.id,
+        status: 'published',             // <-- 1. Explicitly mark as published
         root_cause: rootCause,
-        resolution_steps: resolution,
+        resolution: resolution,          // <-- 2. Use your original table column
         parts_replaced: partsReplaced,
         part_price: parseFloat(partPrice) || 0,
         downtime_minutes: parseInt(downtime) || 0,

@@ -1,5 +1,12 @@
 'use client';
 
+// Add CheckCircle2 to your lucide-react import
+import { Loader2, CheckCircle2 } from 'lucide-react';
+
+export default function ReportFormTab({ draftData, machineId }) {
+  // Add this new state variable
+  const [showSuccess, setShowSuccess] = useState(false);
+  // ... existing states ...
 import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -59,7 +66,17 @@ export default function ReportFormTab({ draftData, machineId }) {
       });
       
       if (response.ok) {
-        alert('Shift report officially logged!');
+        if (response.ok) {
+        // Trigger the sleek banner instead of the alert
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 4000); // Auto-hide after 4 seconds
+        
+        // Clear the form after successful submission
+        setFormData({
+          id: '', root_cause: '', resolution: '', parts_replaced: '', 
+          part_price: '', downtime_minutes: '', technicians: ''
+        });
+      }
         // Clear the form after successful submission
         setFormData({
           id: '', root_cause: '', resolution: '', parts_replaced: '', 
@@ -83,6 +100,16 @@ export default function ReportFormTab({ draftData, machineId }) {
         <h2 className="text-2xl font-bold text-white tracking-tight">Shift Maintenance Log</h2>
         <p className="text-sm text-slate-400 mt-1">Review AI-extracted details or manually dictate your repair report.</p>
       </div>
+{/* Sleek Success Banner */}
+      {showSuccess && (
+        <div className="mb-8 p-4 bg-[#D9FF00]/10 border border-[#D9FF00] text-[#D9FF00] rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+          <CheckCircle2 className="w-5 h-5" />
+          <span className="font-semibold">Shift report officially logged to the database.</span>
+        </div>
+      )}
+
+      <form onSubmit={handlePublish} className="space-y-8"></form>
+
 
       <form onSubmit={handlePublish} className="space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
