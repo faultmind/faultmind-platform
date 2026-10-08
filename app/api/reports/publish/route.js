@@ -23,13 +23,8 @@ export async function POST(req) {
 
     if (!machineId) return NextResponse.json({ error: 'Machine ID is required' }, { status: 400 });
 
-    // 3. Insert into database using admin client
-    const adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    );
-
-    const { error: dbError } = await adminClient
+// 3. Insert into database using the authenticated client (Passes RLS)
+    const { error: dbError } = await authClient
       .from('maintenance_reports')
       .insert([{
         machine_id: machineId,
