@@ -9,22 +9,16 @@ export async function POST(req) {
   try {
     const cookieStore = await cookies();
     
-    // 1. AUTH CLIENT: Securely read cookies to verify the user
+    // 1. Check user auth
     const authClient = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-        },
-      }
+      { cookies: { getAll() { return cookieStore.getAll(); } } }
     );
 
     const { data: { user }, error: authError } = await authClient.auth.getUser();
     if (!user || authError) {
-      return NextResponse.json({ error: 'Unauthorized: Please log in.' }, { status: 401 });
+      return NextResponse.json({ error: 'Auth Error: Unauthorized or not logged in.' }, { status: 401 });
     }
 
     const formData = await req.formData();
@@ -32,32 +26,35 @@ export async function POST(req) {
     const machineId = formData.get('machineId');
 
     if (!file || !machineId) {
-      return NextResponse.json({ error: 'Missing file or machine ID' }, { status: 400 });
+      return NextResponse.json({ error: 'Validation Error: Missing file or machine ID.' }, { status: 400 });
     }
 
     const fileName = file.name;
     const filePath = `${machineId}/${Date.now()}_${fileName}`;
 
-    // 2. ADMIN CLIENT: Use Service Role Key to bypass RLS for data writing
+    // 2. Admin client to bypass RLS
     const adminClient = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     );
 
-    // 3. Upload to Bucket
+    // Convert to ArrayBuffer explicitly (fixes Node/Vercel File object parsing bugs)
+    const arrayBuffer = await file.arrayBuffer();
+    const fileBody = new Uint8Array(arrayBuffer);
+
+    // 3. Upload to bucket
     const { error: uploadError } = await adminClient.storage
       .from('machine-docs')
-      .upload(filePath, file, {
-        contentType: file.type || 'application/octet-stream',
+      .upload(filePath, fileBody, {
+        contentType: file.type || 'text/plain',
         upsert: false
       });
 
     if (uploadError) {
-      console.error('🚨 Bucket Upload Error:', uploadError);
-      return NextResponse.json({ error: 'Storage upload failed' }, { status: 500 });
+      return NextResponse.json({ error: `Storage Error: ${uploadError.message}` }, { status: 500 });
     }
 
-    // 4. Insert into Database
+    // 4. Insert into database
     const { error: dbError } = await adminClient
       .from('machine_documents')
       .insert([{
@@ -68,19 +65,15 @@ export async function POST(req) {
         file_type: fileName.split('.').pop().toUpperCase()
       }]);
 
-    // 5. Cleanup if Database fails
     if (dbError) {
-      console.error('🚨 Database Insert Error:', dbError);
-      // Delete the orphaned file from the bucket so we don't get copies!
+      // Cleanup the stranded file
       await adminClient.storage.from('machine-docs').remove([filePath]);
-      
-      return NextResponse.json({ error: 'Database insert failed (Check terminal logs for missing columns)' }, { status: 500 });
+      return NextResponse.json({ error: `Database Error: ${dbError.message}` }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
 
   } catch (error) {
-    console.error('🚨 Upload handler crash:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: `Server Crash: ${error.message}` }, { status: 500 });
   }
 }
