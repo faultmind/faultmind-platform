@@ -328,49 +328,54 @@ const handleFileUpload = async (e) => {
                 </div>
               </div>
 
-              {messages.map((m) => (
-                <div key={m.id} className={`flex gap-4 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  {m.role !== 'user' && (
-                    <div className="w-8 h-8 rounded-full bg-[#131C31] border border-slate-700 flex items-center justify-center shrink-0 mt-1">
-                      <Bot size={16} className="text-[#D9FF00]" />
+              {messages.map((m) => {
+                // Hide the empty assistant bubble before the stream starts
+                if (m.role === 'assistant' && !m.content) return null;
+
+                return (
+                  <div key={m.id} className={`flex gap-4 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    {m.role !== 'user' && (
+                      <div className="w-8 h-8 rounded-full bg-[#131C31] border border-slate-700 flex items-center justify-center shrink-0 mt-1">
+                        <Bot size={16} className="text-[#D9FF00]" />
+                      </div>
+                    )}
+                    
+                    <div className={`max-w-[80%] p-4 rounded-2xl leading-relaxed ${
+                      m.role === 'user'
+                        ? 'bg-[#D9FF00] text-slate-900 font-medium rounded-tr-none whitespace-pre-wrap'
+                        : 'bg-[#131C31] text-slate-200 border border-slate-800 rounded-tl-none overflow-x-auto'
+                    }`}>
+                      {m.role === 'user' ? (
+                        m.content
+                      ) : (
+                        <ReactMarkdown 
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            code({node, inline, className, children, ...props}) {
+                              const match = /language-(\w+)/.exec(className || '');
+                              return !inline && match ? (
+                                <SyntaxHighlighter style={vscDarkPlus} language={match[1]} PreTag="div" className="rounded-lg border border-slate-700 !my-4 !bg-[#0F172A]" {...props}>
+                                  {String(children).replace(/\n$/, '')}
+                                </SyntaxHighlighter>
+                              ) : (
+                                <code className="bg-slate-800 text-[#D9FF00] px-1.5 py-0.5 rounded-md text-sm font-mono" {...props}>{children}</code>
+                              );
+                            }
+                          }}
+                        >
+                          {m.content}
+                        </ReactMarkdown>
+                      )}
                     </div>
-                  )}
-                  
-                  <div className={`max-w-[80%] p-4 rounded-2xl leading-relaxed ${
-                    m.role === 'user'
-                      ? 'bg-[#D9FF00] text-slate-900 font-medium rounded-tr-none whitespace-pre-wrap'
-                      : 'bg-[#131C31] text-slate-200 border border-slate-800 rounded-tl-none overflow-x-auto'
-                  }`}>
-                    {m.role === 'user' ? (
-                      m.content
-                    ) : (
-                      <ReactMarkdown 
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          code({node, inline, className, children, ...props}) {
-                            const match = /language-(\w+)/.exec(className || '');
-                            return !inline && match ? (
-                              <SyntaxHighlighter style={vscDarkPlus} language={match[1]} PreTag="div" className="rounded-lg border border-slate-700 !my-4 !bg-[#0F172A]" {...props}>
-                                {String(children).replace(/\n$/, '')}
-                              </SyntaxHighlighter>
-                            ) : (
-                              <code className="bg-slate-800 text-[#D9FF00] px-1.5 py-0.5 rounded-md text-sm font-mono" {...props}>{children}</code>
-                            );
-                          }
-                        }}
-                      >
-                        {m.content}
-                      </ReactMarkdown>
+
+                    {m.role === 'user' && (
+                      <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0 mt-1">
+                        <User size={16} className="text-slate-300" />
+                      </div>
                     )}
                   </div>
-
-                  {m.role === 'user' && (
-                    <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0 mt-1">
-                      <User size={16} className="text-slate-300" />
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
 
               {isLoading && (
                 <div className="flex gap-4 items-center">
