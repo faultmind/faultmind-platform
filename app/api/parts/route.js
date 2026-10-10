@@ -8,70 +8,71 @@ function getAdminClient() {
   );
 }
 
-// GET: Fetch all parts for a machine
+// GET: Fetch the Bill of Materials (BOM) for a specific machine
 export async function GET(request) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const machineId = searchParams.get('machineId');
 
-    const adminClient = getAdminClient();
-
-    let query = adminClient
-      .from('spare_parts')
-      .select('*')
-      .order('part_name', { ascending: true });
-
-    // Only filter if machineId is a valid non-empty value and not 'unknown'
-    if (machineId && machineId !== 'unknown' && machineId !== 'null') {
-      query = query.eq('machine_id', machineId);
+    if (!machineId || machineId === 'unknown' || machineId === 'null') {
+      return NextResponse.json([]); 
     }
 
-    const { data, error } = await query;
+    const adminClient = getAdminClient();
+
+    // Query the junction table and pull in the master catalog details
+    const { data, error } = await adminClient
+      .from('machine_bom')
+      .select(`
+        part_id,
+        parts_catalog (*)
+      `)
+      .eq('machine_id', machineId);
 
     if (error) {
-      console.error('Parts GET error:', error);
+      console.error('BOM GET error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(data || []);
+    // Flatten the nested Supabase response so the frontend table can read it easily
+    const formattedParts = data
+      .filter(row => row.parts_catalog) // Ensure the part still exists in the catalog
+      .map(row => row.parts_catalog);
+
+    return NextResponse.json(formattedParts);
   } catch (error) {
-    console.error('Parts GET route crash:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-// POST: Add a new spare part
+// POST: Link an existing master part to a machine's BOM
 export async function POST(req) {
   try {
-    const { machineId, partName, partNumber, stockLevel, price } = await req.json();
+    const { machineId, partId } = await req.json();
 
-    const validMachineId =
-      machineId && machineId !== 'unknown' && machineId !== 'null' ? machineId : null;
+    if (!machineId || !partId) {
+      return NextResponse.json({ error: 'Machine ID and Part ID are required' }, { status: 400 });
+    }
 
     const adminClient = getAdminClient();
 
-    const { data, error } = await adminClient
-      .from('spare_parts')
-      .insert([
-        {
-          machine_id: validMachineId,
-          part_name: partName,
-          part_number: partNumber || null,
-          stock_level: parseInt(stockLevel, 10) || 0,
-          price: parseFloat(price) || 0.0,
-        },
-      ])
-      .select()
-      .single();
+    const { error } = await adminClient
+      .from('machine_bom')
+      .insert([{
+        machine_id: machineId,
+        part_id: partId
+      }]);
 
     if (error) {
-      console.error('Parts POST error:', error);
+      // Handle the case where the part is already linked to this machine
+      if (error.code === '23505') {
+         return NextResponse.json({ error: 'Part is already in this machine\'s BOM' }, { status: 400 });
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, part: data });
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Parts POST route crash:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
