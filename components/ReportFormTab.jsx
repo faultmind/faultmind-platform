@@ -7,33 +7,33 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 
 export default function ReportForm({ machineId, existingReport = null, onSuccess }) {
-  // Main form state
   const [rootCause, setRootCause] = useState(existingReport?.root_cause || '');
   const [resolution, setResolution] = useState(existingReport?.resolution || '');
   const [downtime, setDowntime] = useState(existingReport?.downtime_minutes || '');
+  const [technicians, setTechnicians] = useState(existingReport?.technicians || '');
   
-  // Parts Staging State
-  const [bomParts, setBomParts] = useState([]); // Master list for this machine
+  const [bomParts, setBomParts] = useState([]);
   const [stagedParts, setStagedParts] = useState(existingReport?.used_parts || []);
   
-  // Staging Inputs
   const [selectedPartId, setSelectedPartId] = useState('');
   const [selectedQty, setSelectedQty] = useState(1);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Fetch the Machine's BOM for the dropdown
   useEffect(() => {
     async function fetchBOM() {
       if (!machineId) return;
-      const res = await fetch(`/api/parts?machineId=${machineId}`);
-      if (res.ok) setBomParts(await res.json());
+      try {
+        const res = await fetch(`/api/parts?machineId=${machineId}`);
+        if (res.ok) setBomParts(await res.json());
+      } catch (err) {
+        console.error('Failed to load machine BOM:', err);
+      }
     }
     fetchBOM();
   }, [machineId]);
 
-  // Add part to staging area
   const handleStagePart = (e) => {
     e.preventDefault();
     if (!selectedPartId || selectedQty < 1) return;
@@ -42,54 +42,54 @@ export default function ReportForm({ machineId, existingReport = null, onSuccess
     if (!partDetails) return;
 
     setStagedParts(prev => {
-      // If already staged, just add to the existing quantity
       const existing = prev.find(p => p.partId === selectedPartId);
       if (existing) {
         return prev.map(p => 
           p.partId === selectedPartId 
-            ? { ...p, qty: p.qty + parseInt(selectedQty) } 
+            ? { ...p, qty: p.qty + parseInt(selectedQty, 10) } 
             : p
         );
       }
-      // Otherwise, add new row
       return [...prev, { 
         partId: partDetails.id, 
         name: partDetails.part_name, 
         number: partDetails.part_number,
-        qty: parseInt(selectedQty),
+        qty: parseInt(selectedQty, 10),
         maxStock: partDetails.stock_level 
       }];
     });
 
-    // Reset staging inputs
     setSelectedPartId('');
     setSelectedQty(1);
   };
 
-  // Inline edit quantity in the staging table
   const handleUpdateStagedQty = (partId, newQty) => {
-    const qty = Math.max(1, parseInt(newQty) || 1);
+    const qty = Math.max(1, parseInt(newQty, 10) || 1);
     setStagedParts(prev => prev.map(p => p.partId === partId ? { ...p, qty } : p));
   };
 
-  // Remove part from staging table
   const handleRemoveStagedPart = (partId) => {
     setStagedParts(prev => prev.filter(p => p.partId !== partId));
   };
 
-  // Submit the complete report
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setIsSubmitting(true);
 
     const payload = {
-      id: existingReport?.id, // Only present if editing
+      id: existingReport?.id,
       machine_id: machineId,
       root_cause: rootCause,
       resolution: resolution,
-      downtime_minutes: downtime,
-      used_parts: stagedParts.map(p => ({ partId: p.partId, qty: p.qty })) // Clean payload
+      downtime_minutes: parseInt(downtime, 10) || 0,
+      technicians: technicians || 'Duty Engineer',
+      used_parts: stagedParts.map(p => ({
+        partId: p.partId,
+        name: p.name,
+        number: p.number,
+        qty: p.qty
+      }))
     };
 
     try {
@@ -100,7 +100,18 @@ export default function ReportForm({ machineId, existingReport = null, onSuccess
         body: JSON.stringify(payload)
       });
 
-      if (!res.ok) throw new Error((await res.json()).error);
+      if (!res.ok) {
+        const text = await res.text();
+        let message = 'Server error occurred';
+        try {
+          const parsed = JSON.parse(text);
+          message = parsed.error || message;
+        } catch {
+          message = text.slice(0, 150) || `HTTP error ${res.status}`;
+        }
+        throw new Error(message);
+      }
+
       if (onSuccess) onSuccess();
       
     } catch (err) {
@@ -118,32 +129,54 @@ export default function ReportForm({ machineId, existingReport = null, onSuccess
         </div>
       )}
 
-      {/* Basic Report Details (Root Cause, Resolution, etc.) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="md:col-span-2">
           <Label className="text-xs text-slate-400">Root Cause</Label>
-          <Input required value={rootCause} onChange={e => setRootCause(e.target.value)} className="bg-[#0F172A] border-slate-700" />
+          <Input 
+            required 
+            value={rootCause} 
+            onChange={e => setRootCause(e.target.value)} 
+            className="bg-[#0F172A] border-slate-700" 
+          />
         </div>
         <div className="md:col-span-2">
           <Label className="text-xs text-slate-400">Resolution</Label>
-          <textarea required value={resolution} onChange={e => setResolution(e.target.value)} className="w-full bg-[#0F172A] border border-slate-700 rounded-md p-3 text-sm focus:ring-1 focus:ring-[#D9FF00] min-h-[100px]" />
+          <textarea 
+            required 
+            value={resolution} 
+            onChange={e => setResolution(e.target.value)} 
+            className="w-full bg-[#0F172A] border border-slate-700 rounded-md p-3 text-sm focus:ring-1 focus:ring-[#D9FF00] min-h-[100px]" 
+          />
         </div>
         <div>
           <Label className="text-xs text-slate-400">Downtime (Minutes)</Label>
-          <Input type="number" required value={downtime} onChange={e => setDowntime(e.target.value)} className="bg-[#0F172A] border-slate-700" />
+          <Input 
+            type="number" 
+            required 
+            value={downtime} 
+            onChange={e => setDowntime(e.target.value)} 
+            className="bg-[#0F172A] border-slate-700" 
+          />
+        </div>
+        <div>
+          <Label className="text-xs text-slate-400">Technician(s)</Label>
+          <Input 
+            value={technicians} 
+            placeholder="e.g. M. Madi, Electrical Dept"
+            onChange={e => setTechnicians(e.target.value)} 
+            className="bg-[#0F172A] border-slate-700" 
+          />
         </div>
       </div>
 
       <hr className="border-slate-800" />
 
-      {/* PARTS STAGING SECTION */}
       <div>
         <div className="flex items-center gap-2 mb-4">
           <Wrench className="w-4 h-4 text-[#D9FF00]" />
           <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-300">Parts Replaced</h3>
         </div>
 
-        {/* Dropdown & Add Button */}
         <div className="flex items-end gap-3 mb-4 bg-[#131C31] p-4 rounded-lg border border-slate-800">
           <div className="flex-1">
             <Label className="text-xs text-slate-400 block mb-1">Select from Machine BOM</Label>
@@ -162,14 +195,24 @@ export default function ReportForm({ machineId, existingReport = null, onSuccess
           </div>
           <div className="w-24">
             <Label className="text-xs text-slate-400 block mb-1">Qty</Label>
-            <Input type="number" min="1" value={selectedQty} onChange={e => setSelectedQty(e.target.value)} className="bg-[#0F172A] border-slate-700 h-9" />
+            <Input 
+              type="number" 
+              min="1" 
+              value={selectedQty} 
+              onChange={e => setSelectedQty(e.target.value)} 
+              className="bg-[#0F172A] border-slate-700 h-9" 
+            />
           </div>
-          <Button type="button" onClick={handleStagePart} disabled={!selectedPartId} className="bg-slate-700 hover:bg-slate-600 text-white h-9">
+          <Button 
+            type="button" 
+            onClick={handleStagePart} 
+            disabled={!selectedPartId} 
+            className="bg-slate-700 hover:bg-slate-600 text-white h-9"
+          >
             <Plus className="w-4 h-4 mr-1" /> Add
           </Button>
         </div>
 
-        {/* Dynamic Staging Table */}
         {stagedParts.length > 0 && (
           <div className="bg-[#0F172A] border border-slate-800 rounded-lg overflow-hidden">
             <table className="w-full text-sm text-left">
@@ -184,10 +227,9 @@ export default function ReportForm({ machineId, existingReport = null, onSuccess
                 {stagedParts.map(part => (
                   <tr key={part.partId} className="hover:bg-slate-800/30">
                     <td className="px-4 py-3 font-medium">
-                      {part.name} <span className="text-slate-500 font-normal text-xs ml-2">{part.number}</span>
+                      {part.name} <span className="text-slate-500 font-normal text-xs ml-2">{part.number || ''}</span>
                     </td>
                     <td className="px-4 py-3">
-                      {/* INLINE QUANTITY EDITING */}
                       <Input 
                         type="number" 
                         min="1"
@@ -213,8 +255,18 @@ export default function ReportForm({ machineId, existingReport = null, onSuccess
         )}
       </div>
 
-      <Button type="submit" disabled={isSubmitting} className="w-full bg-[#D9FF00] text-black hover:bg-[#c8eb00] font-bold h-10 mt-6">
-        {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : existingReport ? 'Update Report & Inventory' : 'Publish Report & Deduct Inventory'}
+      <Button 
+        type="submit" 
+        disabled={isSubmitting} 
+        className="w-full bg-[#D9FF00] text-black hover:bg-[#c8eb00] font-bold h-10 mt-6"
+      >
+        {isSubmitting ? (
+          <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+        ) : existingReport ? (
+          'Update Report & Reconcile Inventory'
+        ) : (
+          'Publish Report & Deduct Inventory'
+        )}
       </Button>
     </form>
   );

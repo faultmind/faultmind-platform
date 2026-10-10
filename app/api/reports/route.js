@@ -2,7 +2,10 @@
 export async function PUT(req) {
   try {
     const { id, root_cause, resolution, downtime_minutes, technicians, used_parts } = await req.json();
-    const adminClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+    const adminClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    );
 
     // 1. Fetch the original report to see what parts we need to refund
     const { data: oldReport } = await adminClient
@@ -50,7 +53,10 @@ export async function DELETE(req) {
   try {
     const searchParams = req.nextUrl.searchParams;
     const id = searchParams.get('id');
-    const adminClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+    const adminClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    );
 
     // 1. Fetch the report to refund inventory before deleting
     const { data: oldReport } = await adminClient.from('maintenance_reports').select('used_parts').eq('id', id).single();
