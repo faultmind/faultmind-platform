@@ -6,6 +6,7 @@ import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { Settings, Plus } from 'lucide-react';
 import MachineNavList from '../../../components/MachineNavList';
+import { Settings, Plus, PackageSearch } from 'lucide-react';
 
 export default async function MachinesLayout({ children, params }) {
   const resolvedParams = await params;
@@ -68,6 +69,12 @@ export default async function MachinesLayout({ children, params }) {
 
         {/* Subtle Bottom Controls */}
         <div className="p-4 border-t border-slate-800 space-y-1">
+          <Link 
+            href={`/${locale}/inventory`} 
+            className="flex items-center gap-3 px-3 py-2 w-full rounded-lg hover:bg-slate-800 text-slate-400 hover:text-[#D9FF00] transition-colors text-sm font-medium no-underline"
+          >
+            <PackageSearch size={18} /> Master Inventory
+          </Link>
           <Link 
             href={`/${locale}/machines/new`} 
             className="flex items-center gap-3 px-3 py-2 w-full rounded-lg hover:bg-slate-800 text-slate-400 hover:text-[#D9FF00] transition-colors text-sm font-medium no-underline"
