@@ -51,7 +51,7 @@ export async function GET(request) {
 export async function POST(req) {
   try {
     const { 
-      machine_id, 
+      machine_id,
       root_cause, 
       resolution, 
       downtime_minutes, 

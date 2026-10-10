@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 
-export default function ReportForm({ machineId, existingReport = null, onSuccess }) {
+export default function ReportForm({ machineId, sessionId = null, existingReport = null, onSuccess }) {
   const [rootCause, setRootCause] = useState(existingReport?.root_cause || '');
   const [resolution, setResolution] = useState(existingReport?.resolution || '');
   const [downtime, setDowntime] = useState(existingReport?.downtime_minutes || '');
@@ -80,6 +80,7 @@ export default function ReportForm({ machineId, existingReport = null, onSuccess
     const payload = {
       id: existingReport?.id,
       machine_id: machineId,
+      session_id: sessionId,
       root_cause: rootCause,
       resolution: resolution,
       downtime_minutes: parseInt(downtime, 10) || 0,
