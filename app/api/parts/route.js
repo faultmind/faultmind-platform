@@ -1,30 +1,43 @@
-import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+
+function getAdminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+}
 
 // GET: Fetch all parts for a machine
 export async function GET(request) {
-  const searchParams = request.nextUrl.searchParams;
-  const machineId = searchParams.get('machineId');
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    const machineId = searchParams.get('machineId');
 
-  if (!machineId) return NextResponse.json({ error: 'Machine ID is required' }, { status: 400 });
+    const adminClient = getAdminClient();
 
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    { cookies: { getAll() { return cookieStore.getAll(); } } }
-  );
+    let query = adminClient
+      .from('spare_parts')
+      .select('*')
+      .order('part_name', { ascending: true });
 
-  const { data, error } = await supabase
-    .from('spare_parts')
-    .select('*')
-    .eq('machine_id', machineId)
-    .order('part_name', { ascending: true });
+    // Only filter if machineId is a valid non-empty value and not 'unknown'
+    if (machineId && machineId !== 'unknown' && machineId !== 'null') {
+      query = query.eq('machine_id', machineId);
+    }
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Parts GET error:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json(data || []);
+  } catch (error) {
+    console.error('Parts GET route crash:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 }
 
 // POST: Add a new spare part
@@ -32,29 +45,33 @@ export async function POST(req) {
   try {
     const { machineId, partName, partNumber, stockLevel, price } = await req.json();
 
-    // Use Service Role to bypass RLS blocks
-    const adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
+    const validMachineId =
+      machineId && machineId !== 'unknown' && machineId !== 'null' ? machineId : null;
+
+    const adminClient = getAdminClient();
 
     const { data, error } = await adminClient
       .from('spare_parts')
-      .insert([{
-        machine_id: machineId,
-        part_name: partName,
-        part_number: partNumber,
-        stock_level: parseInt(stockLevel) || 0,
-        price: parseFloat(price) || 0.00
-      }])
+      .insert([
+        {
+          machine_id: validMachineId,
+          part_name: partName,
+          part_number: partNumber || null,
+          stock_level: parseInt(stockLevel, 10) || 0,
+          price: parseFloat(price) || 0.0,
+        },
+      ])
       .select()
       .single();
 
-    if (error) throw new Error(error.message);
-    return NextResponse.json({ success: true, part: data });
+    if (error) {
+      console.error('Parts POST error:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 
+    return NextResponse.json({ success: true, part: data });
   } catch (error) {
-    console.error('Parts Error:', error);
-    return NextResponse.json({ error: 'Failed to add part' }, { status: 500 });
+    console.error('Parts POST route crash:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
