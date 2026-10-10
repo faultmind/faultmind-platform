@@ -1,5 +1,6 @@
 'use client';
 
+import PartsTab from '@/components/PartsTab';
 import { createBrowserClient } from '@supabase/ssr';
 import ReportHistory from '@/components/ReportHistory';
 
@@ -505,6 +506,11 @@ const handleFileUpload = async (e) => {
   </div>
 )}
         </div> )}
+       {activeTab === 'parts' && ( 
+          <div className="h-full overflow-y-auto">
+            <PartsTab machineId={machine?.id} />
+          </div> 
+        )}
        {activeTab === 'reports' && ( 
         <div className="h-full overflow-y-auto">
           <ReportFormTab draftData={draftReport} machineId={machine?.id} sessionId={sessionId} />
