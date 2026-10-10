@@ -4,9 +4,8 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
-import { Settings, Plus } from 'lucide-react';
-import MachineNavList from '../../../components/MachineNavList';
 import { Settings, Plus, PackageSearch } from 'lucide-react';
+import MachineNavList from '../../../components/MachineNavList';
 
 export default async function MachinesLayout({ children, params }) {
   const resolvedParams = await params;
